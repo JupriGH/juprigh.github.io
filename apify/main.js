@@ -403,12 +403,6 @@ class UI_Dataset extends UI_Base {
 	on_close_click = e => this.remove()
 	on_page_click = e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
 	
-	get_column(value) {
-		if (value === null) 				return _('td')._('null') 
-		if (value === undefined) 			return _('td')._('undefined')
-		return _('td')._(value.toString())
-	}
-	
 	page_view = (index, node) => {
 		var data = this._data, head = this._head_list
 		
@@ -416,7 +410,7 @@ class UI_Dataset extends UI_Base {
 		this._list.clear()._(
 			... data.map(e => _('tr')._(
 				_('th').css('row-index','sticky-l')._(++ index),
-				... head.map(n => this.get_column(e[n]))
+				... head.map(n => app.get_column(e[n]))
 			))
 		)
 		//
