@@ -23,7 +23,7 @@ class CMainDB {
 		}))
 }
 ///////////////////////////////
-export const app = {
+export const app = window._app = {
 	host	: '', //'https://1ehucfdghji5.runs.apify.net/api',
 	actors	: {},
 	db		: new CMainDB(),
@@ -51,6 +51,38 @@ export const app = {
 			}
 		})
 	},
+	
+	////////////////////////////////////////////////// CACHE
+	// https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
+	// https://advancedweb.hu/how-to-use-async-await-with-postmessage/
+		
+	cache_node : null, // iframe
+	cache_init : () =>  new Promise((resolve) => {
+		window.document.body._( 
+			_('iframe').css({display:'none'}).attr({src:'cache/'}).on('load', e => resolve(app.cache_node = e.target)) 
+		)
+	}),
+	
+	cache_get: (id) =>  new Promise((resolve) => {
+		var channel = new MessageChannel()
+		channel.port1.onmessage = e => resolve(e.data)
+		
+		// transfer port
+		app.cache_node.contentWindow.postMessage('INIT', '*', [channel.port2])
+		// get
+		channel.port1.postMessage({type:'get',id})
+	}),
+	
+	cache_set: (data) => new Promise((resolve) => {
+		var channel = new MessageChannel()
+		channel.port1.onmessage = e => resolve(e.data)
+		
+		// transfer port
+		app.cache_node.contentWindow.postMessage('INIT', '*', [channel.port2])
+		// get
+		channel.port1.postMessage({type:'set', data})
+	}),
+	
 	////////////////////////////////////////////////// OAUTH
 	auth_url		: './auth', 	// bouncer
 	auth_resolve	: null, 	// callback

@@ -348,6 +348,7 @@ class UI_Storage extends UI_Base { // storage list
 }
 ///
 class UI_Dataset extends UI_Base {
+	
 	constructor() {
 		super()
 		
@@ -374,7 +375,7 @@ class UI_Dataset extends UI_Base {
 			app.api({command:'storage-list', name}).then(res => {
 				var meta = res.data
 				
-				app.db.get_data(name).then(res => {
+				app.cache_get(name).then(res => {
 					if (res) {
 						console.log('CACHED')
 						return res.data
@@ -383,7 +384,7 @@ class UI_Dataset extends UI_Base {
 					return app.api({command:'storage-data', name, type:parseInt(type||0)})	
 						.then(res => {
 							if (res.raw) {
-								app.db.set_data(name,res.raw, meta)
+								app.cache_set({id:name, data:res.raw, meta})
 								return res.raw
 							}
 						})
@@ -414,66 +415,79 @@ class UI_Dataset extends UI_Base {
 }
 ///////////////////////////////////////////// MAIN
 class UI_Main extends UI_Base {
+	
 	constructor() {
 		super()
-
-		this.css('ui-main','flex-row')._(
-			// MAIN CONTENT
-			_('div').css('ui-main-content', 'flex-col')._(
-				this._content = _('div') 
-			), 
-			// MAIN MENU
-			_('div').css('ui-main-menu', 'flex-col')._(
-				this.button('actor','ACTOR'),
-				this.button('storage','STORAGE'),
-				this.button('airtable','AIRTABLE'),
-				this.button('google','GOOGLE'),
-			)
-		)
+		
+		this.css('ui-main','flex-row')
+		
 		this.run(
-			app.api({command:'config'}).then(res => {
-				var actors = res?.data?.actors
-				if (actors) {
-					app.actors = Object.fromEntries(actors.map(e => [e.id, e]))
+			
+			Promise.allSettled([
+				
+				app.cache_init(),
+				app.api({command:'config'})
+			
+			]).then( res => {
+
+				var [node, config] = res 
+				
+				this._(
+					// MAIN CONTENT
+					_('div').css('ui-main-content', 'flex-col')._(
+						this._content = _('div') 
+					), 
+					// MAIN MENU
+					_('div').css('ui-main-menu', 'flex-col')._(
+						this.button('actor','ACTOR'),
+						this.button('storage','STORAGE'),
+						this.button('airtable','AIRTABLE'),
+						this.button('google','GOOGLE'),
+					)
+				)
+			
+				// config
+				if (config?.value) {
+					/*
+					var actors = res?.data?.actors
+					if (actors) {
+						app.actors = Object.fromEntries(actors.map(e => [e.id, e]))
+					}
+					*/
 				}
 			})
 		)
 	}
 
 	set_content = content  => this._content.replaceWith( this._content = content )
-	on_storage_click = e => this.set_content(_('div', {is:'ui-storage'}))
 	
-	on_airtable_click = e => {
-		this.run( 
-			app.auth('airtable').then(res => console.log('CODE', res))
-		)
-	}
-	on_google_click = e => {
-		this.run(
-			 app.auth('google').then(res => console.log('CODE', res))
-		)
-	}
+	on_storage_click 	= e => this.set_content(_('div', {is:'ui-storage'}))
+	//on_actor_click 		= e => app.cache_get('AONaNTUtji6ymussY').then(console.log)
+	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => console.log('CODE', res)))
+	on_google_click 	= e => this.run(app.auth('google').then(res => console.log('CODE', res)))
 }
 
 ////////////////////////////////////// BOOT
 
 window.on('load', e => {
+	
 	var query = new URLSearchParams(window.location.search)
-	var server = query.get('server')
-	if (server) {
-		localStorage.setItem('server',server)
-		window.location.href = window.location.origin
-	} else {
-		
-		app.host = localStorage.getItem('server')||''
-		
-		customElements.define( 'ui-list-editor', 	UI_ListEditor, 	{extends:'div'} )
-		customElements.define( 'ui-actor', 			UI_Actor, 		{extends:'div'} )
-		customElements.define( 'ui-storage',		UI_Storage,		{extends:'div'} )
-		customElements.define( 'ui-dataset',		UI_Dataset, 	{extends:'div'} )
-		customElements.define( 'ui-main', 			UI_Main, 		{extends:'div'} )
-
-		// INIT
-		window.document.body._( _('div', {is:'ui-main'}) )
+	var param = query.get('param')
+	if (param) {
+		param = JSON.parse(atob(param))
+		console.log('PARAM', param)
+		app.host = param.server
 	}
+		
+	// app.host = localStorage.getItem('server')||''
+	
+	customElements.define( 'ui-list-editor', 	UI_ListEditor, 	{extends:'div'} )
+	customElements.define( 'ui-actor', 			UI_Actor, 		{extends:'div'} )
+	customElements.define( 'ui-storage',		UI_Storage,		{extends:'div'} )
+	customElements.define( 'ui-dataset',		UI_Dataset, 	{extends:'div'} )
+	customElements.define( 'ui-main', 			UI_Main, 		{extends:'div'} )
+	
+	// INIT UI
+	window.document.body._( _('div', {is:'ui-main'}) )
+	
 }, {once: true} )
