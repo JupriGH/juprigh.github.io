@@ -16,6 +16,8 @@ window.on('load', e => {
 				break
 				
 			case 'set':
+				console.log('SET', e)
+				
 				var {id, data, meta} = e.data
 				if (id && data && meta) await app.db.set_data(id, data, meta)
 				break
