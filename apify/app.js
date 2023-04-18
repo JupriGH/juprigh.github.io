@@ -14,7 +14,7 @@ class CMainDB {
 	
 	store = (...name) => this.open().then(db => db.transaction([...name], "readwrite").objectStore(name[0]))
 	
-	set_data = (id, data, meta) => this.store('datasets').then(store => store.add({id, data, meta}))
+	set_data = (id, data, meta) => this.store('datasets').then(store => store.put({id, data, meta}))
 	
 	get_data = (id) => 
 		this.store('datasets').then(store => new Promise((resolve) => {

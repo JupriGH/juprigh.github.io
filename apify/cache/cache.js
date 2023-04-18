@@ -19,7 +19,7 @@ window.on('load', e => {
 			case 'set':
 				
 				var {id, data, meta} = e.data.data
-				if (id && data && meta) await app.db.set_data(id, data, meta)
+				if (id && data) await app.db.set_data(id, data, meta)
 				break
 			}
 		}

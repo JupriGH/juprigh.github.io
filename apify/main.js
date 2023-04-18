@@ -1,6 +1,12 @@
 import '../core.js'
 import { app } from './app.js?'
 
+const 	LIST_ACTORS   = '__ACTORS__',
+		LIST_DATASETS = '__DATASETS__',
+		LIST_KEYVALUE = '__KEYVALUE__'
+
+const	PER_PAGE = 10
+
 const DecompressB64 = async data => {
 	var arr = new Uint8Array(atob(data).split('').map(e => e.charCodeAt(0)))
 	var blob = new Blob([arr.buffer])
@@ -284,18 +290,43 @@ class UI_Storage extends UI_Base { // storage list
 
 	set_type = type => { 		
 		this._type = type
+		
 		if ((type === 0 && !this._data_ds) || (type !== 0 && !this._data_kv)) {
 			this.run(
+				
 				app.api({command:'storage-list', type}).then( res => {
+					
+					console.log('UPDATE STORAGE LIST')
 					// actors
+					
 					var actors = res?.data?.actors
-					if (actors) Object.assign(app.actors, actors)
+					if (actors) app.cache_set({id:LIST_ACTORS, data:{actors}})
 					
 					// stores
 					var stores = res?.data?.stores
-					if (type === 0) this._data_ds = stores
-					else 			this._data_kv = stores
-
+					if (type === 0) app.cache_set({id:LIST_DATASETS, data:{stores}})
+					else  			app.cache_set({id:LIST_KEYVALUE, data:{stores}})
+					
+					
+					return [actors, stores]
+				})
+				.catch(e => {
+					// ERROR / OFFLINE
+					console.log('ERROR OFFLINE?')
+					var prom
+					if (type === 0) prom = app.cache_get(LIST_DATASETS).then(res => res?.data?.stores)
+					else 			prom = app.cache_get(LIST_KEYVALUE).then(res => res?.data?.stores)
+					
+					return Promise.all([app.cache_get(LIST_ACTORS).then(res => res?.data?.actors), prom])
+				})
+				.then(res => { // [actors, stores]
+					var [actors, stores] = res
+					if (actors)  Object.assign(app.actors, actors)
+					if (stores) {
+						if (type === 0) this._data_ds = stores
+						else 			this._data_kv = stores
+					}
+					
 					this.refresh_view() 
 				})
 			)
@@ -353,61 +384,116 @@ class UI_Dataset extends UI_Base {
 		super()
 		
 		this.css('ui-modal','flex-col')._(
-			_('table').css('ui-table')._(
-				this._head = _('thead').css('sticky-t'),
-				this._list = _('tbody')
-			),
-			_('div')._(this.button('close', 'CLOSE').on('click', this))
+			_('div').css('flex-col')._(
+				_('table').css('ui-table', {'flex-grow':1})._(
+					this._head = _('thead').css('sticky-t'),
+					this._list = _('tbody')
+				),
+				this._page = _('div').css('page-list').data({command:'page'}).on('click', this),
+				_('div').css('button-list')._(this.button('close', 'CLOSE').on('click', this))
+			)
 		)
+
+		// data
+		this._page_item = null // selected
+		this._head_list = []		
+		this._data = []
 	}
 	
 	on_close_click = e => this.remove()
+	on_page_click = e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
 	
 	get_column(value) {
 		if (value === null) 				return _('td')._('null') 
 		if (value === undefined) 			return _('td')._('undefined')
 		return _('td')._(value.toString())
 	}
-
-	_load = (name, type) => {
 	
+	page_view = (index, node) => {
+		var data = this._data, head = this._head_list
+		
+		data = data.slice(index, index+PER_PAGE)
+		this._list.clear()._(
+			... data.map(e => _('tr')._(
+				_('th').css('row-index','sticky-l')._(++ index),
+				... head.map(n => this.get_column(e[n]))
+			))
+		)
+		//
+		if (node) {
+			if (this._page_item) delete this._page_item.dataset.selected
+			this._page_item = node.data({selected:1})
+		}
+	}
+	
+	_load = (name, type) => {
+		var meta = null // OFFLINE
+
 		this.run(
-			app.api({command:'storage-list', name}).then(res => {
-				var meta = res.data
-				
-				app.cache_get(name).then(res => {
-					if (res) {
-						console.log('CACHED')
-						return res.data
-					}
-					
-					return app.api({command:'storage-data', name, type:parseInt(type||0)})	
-						.then(res => {
-							if (res.raw) {
-								app.cache_set({id:name, data:res.raw, meta})
-								return res.raw
+			app.api({command:'storage-list', name})
+				.then(res => meta = res.data)
+				.catch(e => {
+					console.log('GET META: ERROR/OFFLINE')
+				})
+				.then(e => {
+					return app.cache_get(name).then(res => {
+						if (res) {
+							console.log('CACHED')
+							
+							if (meta) {
+								console.log('CHECK DATE')
 							}
-						})
+							
+							return res.data
+						}
+
+						if (meta) {
+							// GET DATA
+							return app.api({command:'storage-data', name, type:parseInt(type||0)})
+								.catch(e => {
+									console.log('GET DATA: ERROR/OFFLINE')
+									return res.data // OFFLINE DATA
+								})
+								.then(res => {
+									if (res.raw) {
+										app.cache_set({id:name, data:res.raw, meta})
+										return res.raw
+									}
+								})
+						}
+					})
 				})
-				.then(raw => DecompressB64(raw).then(raw => JSON.parse(raw)))
+				
+				.then(raw => raw ? DecompressB64(raw).then(raw => JSON.parse(raw)) : null)
 				.then(data => {
-					var head = []
-					// head
-					for (var e of data)
-						for (var k of Object.keys(e))
-							if (!head.includes(k)) head.push(k)
+					// RESET
+					this._data = []
+					this._page_item = null
+					this._head_list.length = 0
+					this._page.clear()
+					this._head.clear()
+					this._list.clear()
+					
+					if (data) {
+						
+						var head = this._head_list
 
-					this._head.clear()._( ... head.map(n => _('th')._(n) ) )
+						// head
+						for (var e of data)
+							for (var k of Object.keys(e))
+								if (!head.includes(k)) head.push(k)
 
-					// list
-					data = data.slice(1, 10)
-					this._list.clear()._(
-						... data.map(e => _('tr')._(
-							... head.map(n => this.get_column(e[n]))
-						))
-					)
+						this._head._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) )
+
+						// list						
+						for (var p = 0; p <= data.length; p += PER_PAGE) {
+							this._page._(_('span').css('page-item').data({page:p})._(`${p+1}-${p+PER_PAGE}`))
+						}
+						this._data = data
+						this.page_view(0)
+					}
 				})
-			}),
+			,
 
 			this.parentNode
 		)
