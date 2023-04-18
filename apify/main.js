@@ -345,10 +345,10 @@ class UI_Storage extends UI_Base { // storage list
 					_('th')._(++no),
 					_('td')._(e.id),
 					_('td')._(e.name),
-					_('td')._(e.itemCount),
-					_('td')._(e.createdAt),
-					_('td')._(e.modifiedAt),
-					_('td')._(e.stats?.s3StorageBytes),
+					app.get_column(e.itemCount),
+					app.get_column(new Date(e.createdAt * 1000)),
+					app.get_column(new Date(e.modifiedAt * 1000)),
+					app.get_column(e.stats?.s3StorageBytes),
 					_('td')._(
 						(actor?.pictureUrl) ? _('img').css('actor-icon').attr({src: actor?.pictureUrl}) : null
 					),
@@ -400,7 +400,7 @@ class UI_Dataset extends UI_Base {
 		this._data = []
 	}
 	
-	on_close_click = e => this.remove()
+	on_close_click = e => this.on('animationend', e => this.remove()) && this.css({'animation':'animate-zoom-out 0.5s'})
 	on_page_click = e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
 	
 	page_view = (index, node) => {

@@ -56,7 +56,7 @@ export const app = window._app = {
 		if (value === undefined) 			return _('td').css('col-empty')._('undefined')
 		if (value.constructor === Boolean)	return _('td').css('col-bool')._(value)
 		if (value.constructor === Number)	return _('td').css('col-number')._(value)
-		
+		if (value.constructor === Date)		return _('td').css('col-date')._(value.toLocaleString('en-GB'))
 		if (value.constructor === Object)	return _('td').css('col-object')._(JSON.stringify(value))
 		if (value.constructor === Array)	return _('td').css('col-array')._(JSON.stringify(value))
 		if (value.constructor === String) {
