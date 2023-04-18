@@ -400,6 +400,7 @@ class UI_Dataset extends UI_Base {
 					this._head.clear()._( ... head.map(n => _('th')._(n) ) )
 
 					// list
+					data = data.slice(1, 10)
 					this._list.clear()._(
 						... data.map(e => _('tr')._(
 							... head.map(n => this.get_column(e[n]))

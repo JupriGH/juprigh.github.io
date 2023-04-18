@@ -11,12 +11,12 @@ window.on('load', e => {
 			switch(e.data.type) {
 
 			case 'get':
+			
 				var rec = await app.db.get_data(e.data.id)
 				port2.postMessage(rec)
 				break
 				
 			case 'set':
-				console.log('SET', e)
 				
 				var {id, data, meta} = e.data.data
 				if (id && data && meta) await app.db.set_data(id, data, meta)
