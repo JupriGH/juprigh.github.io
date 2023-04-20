@@ -481,7 +481,7 @@ class UI_Dataset extends UI_Base {
 						this._head._( _('tr')._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) ) )
 
 						// list						
-						for (var p = 0; p <= data.length; p += PER_PAGE) {
+						for (var p = 0; p < data.length; p += PER_PAGE) {
 							this._page._(_('span').css('page-item').data({page:p})._(`${p+1}-${p+PER_PAGE}`))
 						}
 						this._data = data
