@@ -76,11 +76,11 @@ table.ui-table {
 table.ui-table thead th { padding: 8px 10px; background-color: orange; border-right: 1px solid white;}
 
 table.ui-table tbody {background-color: white;}
-table.ui-table tbody tr:nth-child(even) td { background: rgba(0 0 0 / 3%)}
+table.ui-table tbody tr:nth-child(even) { background: rgba(0 0 0 / 3%)}
 table.ui-table tbody tr:hover { background: #ffeb3b33; cursor: pointer; }
 table.ui-table tbody > tr:last-child { box-shadow: 0px 3px 2px 0px #00000030; }
 table.ui-table tbody th { color: #d0d0d0; }
-table.ui-table tbody th.row-index { background-color: chocolate; }
+table.ui-table tbody th.row-index { padding: 0 5px; background-color: chocolate; font-weight: normal; font-size: smaller; font-style: italic; }
 table.ui-table tbody td { 
 	padding: 5px 10px; 
 	font-size: small;
@@ -163,6 +163,7 @@ td.col-date {
 	border: 2px solid orange;
 	flex-grow: 1;
 	padding: 10px;
+	box-shadow: 0px 0px 5px 2px #0000003d;
 }
 
 .actor-icon {

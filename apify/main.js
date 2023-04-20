@@ -385,7 +385,7 @@ class UI_Dataset extends UI_Base {
 		
 		this.css('ui-modal','flex-col')._(
 			_('div').css('flex-col')._(
-				_('table').css('ui-table', {'flex-grow':1})._(
+				this._table = _('table').css('ui-table', {'flex-grow':1})._(
 					this._head = _('thead').css('sticky-t'),
 					this._list = _('tbody')
 				),
@@ -413,6 +413,7 @@ class UI_Dataset extends UI_Base {
 				... head.map((n,i) => app.get_column(e[n]).data({head:head[i]}))
 			))
 		)
+		this._table.scroll({top:0, left:0}) //, behavior:'smooth'})
 		//
 		if (node) {
 			if (this._page_item) delete this._page_item.dataset.selected
