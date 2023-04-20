@@ -384,7 +384,7 @@ class UI_Dataset extends UI_Base {
 		super()
 		
 		this.css('ui-modal','flex-col')._(
-			_('div').css('flex-col')._(
+			_('div').css('flex-col')._( // content
 				this._table = _('table').css('ui-table', {'flex-grow':1})._(
 					this._head = _('thead').css('sticky-t'),
 					this._list = _('tbody')
