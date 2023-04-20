@@ -5,7 +5,7 @@ const 	LIST_ACTORS   = '__ACTORS__',
 		LIST_DATASETS = '__DATASETS__',
 		LIST_KEYVALUE = '__KEYVALUE__'
 
-const	PER_PAGE = 10
+const	PER_PAGE = 100
 
 const DecompressB64 = async data => {
 	var arr = new Uint8Array(atob(data).split('').map(e => e.charCodeAt(0)))
@@ -410,7 +410,7 @@ class UI_Dataset extends UI_Base {
 		this._list.clear()._(
 			... data.map(e => _('tr')._(
 				_('th').css('row-index','sticky-l')._(++ index),
-				... head.map(n => app.get_column(e[n]))
+				... head.map((n,i) => app.get_column(e[n]).data({head:head[i]}))
 			))
 		)
 		//
@@ -477,7 +477,7 @@ class UI_Dataset extends UI_Base {
 							for (var k of Object.keys(e))
 								if (!head.includes(k)) head.push(k)
 
-						this._head._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) )
+						this._head._( _('tr')._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) ) )
 
 						// list						
 						for (var p = 0; p <= data.length; p += PER_PAGE) {
