@@ -16,15 +16,15 @@ window.addEventListener('load', e => {
 		window.addEventListener('message', e => {
 			
 			console.log('AUTH_ON_MESSAGE', e)
-			//alert(e.data.server)
+			alert(e.data.server)
 			
-			app.api({command:'auth-url', type:e.data.type}, e.data.server).then(res => {
-				//alert(res.data)
+			app.api({command:'auth-url', type:e.data.type}, `${e.data.server}/api`).then(res => {
+				alert(res.data)
 				window.location.href = res.data
 			})
 			.catch(e => {
-				//alert('FAILED')
-				window.close()
+				alert('FAILED')
+				//window.close()
 			})
 		})
 		
