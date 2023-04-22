@@ -17,7 +17,9 @@ const DecompressBlob = async blob => {
 	const stream = blob.stream().pipeThrough(ds)
 	return await new Response(stream).blob().then(res => res.text())
 }
+
 ////////////////////////////////////// BASE INTERFACE
+
 class UI_Base extends HTMLDivElement {
 	constructor() {
 		super()
@@ -29,6 +31,14 @@ class UI_Base extends HTMLDivElement {
 		(element||this).dataset.running = 1
 		promise.finally(() => delete (element||this).dataset.running)
 	}
+	
+	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
+		var modal = _('div', {is:'ui-confirm'})._open({message, type, content, buttons, callback:resolve})
+		var res = (element||app.main_ui)._(modal)
+		/// modal.showModal()
+		return modal
+	})
+
 	handleEvent(e, ... args) {		
 		var command = e.currentTarget.dataset.command ?? e.target.dataset.command
 
@@ -40,6 +50,49 @@ class UI_Base extends HTMLDivElement {
 			console.warn('event:', command, ... args)
 	}
 }
+
+////////////////////////////////////// CONFIRM
+class UI_Confirm extends UI_Base {
+	constructor() {
+		super()
+		this.css('ui-confirm')
+	}
+	
+	_open({message, callback, type, content, buttons}) {
+
+		this._callback = callback 
+		
+		var btn = buttons ? buttons : ['Ok']
+		var is_alert = ['alert','error'].includes(type)
+		
+		if (is_alert) 			this.css(`ui-confirm-${type}`)
+		else if (!buttons) 		btn.push('Cancel')
+		
+		btn = btn.map((b,i) => this.button('button', b).data({index: i}))
+		this.clear()._(
+			_('div').css('ui-confirm-title')._(message),
+			content,
+			_('div')._(... btn)
+		)
+		return this
+	}
+	on_button_click(e) {
+		if (this._callback) this._callback( parseInt(e.currentTarget.dataset.index) )
+		this.remove()
+	}
+	
+	/**
+	on_confirm_click(e) {
+		if (this.confirm_callback) this.confirm_callback(1)
+		this.remove()
+	}
+	on_cancel_click(e) {
+		if (this.confirm_callback) this.confirm_callback(0)
+		this.remove()
+	}
+	**/
+}
+
 ////////////////////////////////////////////////////////// EDITOR
 class UI_ListEditor extends UI_Base {
     constructor() {
@@ -275,7 +328,7 @@ class UI_Storage extends UI_Base { // storage list
 			),
 			_('table').css('ui-table')._(
 				_('thead').css('sticky-t')._(
-					_('tr')._(['#', 'ID', 'Name', 'Items', 'Created','Modified','Size','', 'Actor'].map(e => _('th')._(e)))),
+					_('tr')._(['#', 'ID', 'Name', 'Items', 'Created','Modified','Size','Inflate', '', 'Actor'].map(e => _('th')._(e)))),
 				this._list = _('tbody').data({command:'cell'}).on('click', this)
 			)
 		)
@@ -320,7 +373,10 @@ class UI_Storage extends UI_Base { // storage list
 					return Promise.all([app.cache_get(LIST_ACTORS).then(res => res?.data?.actors), prom])
 				})
 				.then(res => { // [actors, stores]
+					
 					var [actors, stores] = res
+					console.log( stores )
+					
 					if (actors)  Object.assign(app.actors, actors)
 					if (stores) {
 						if (type === 0) this._data_ds = stores
@@ -349,6 +405,7 @@ class UI_Storage extends UI_Base { // storage list
 					app.get_column(new Date(e.createdAt * 1000)),
 					app.get_column(new Date(e.modifiedAt * 1000)),
 					app.get_column(e.stats?.s3StorageBytes),
+					app.get_column(e.stats?.inflatedBytes),
 					_('td')._(
 						(actor?.pictureUrl) ? _('img').css('actor-icon').attr({src: actor?.pictureUrl}) : null
 					),
@@ -377,7 +434,8 @@ class UI_Storage extends UI_Base { // storage list
 	}
 	
 }
-///
+
+///////////////////////////////////////////// DATASET
 class UI_Dataset extends UI_Base {
 	
 	constructor() {
@@ -390,7 +448,10 @@ class UI_Dataset extends UI_Base {
 					this._list = _('tbody')
 				),
 				this._page = _('div').css('page-list').data({command:'page'}).on('click', this),
-				_('div').css('button-list')._(this.button('close', 'CLOSE').on('click', this))
+				_('div').css('button-list')._(
+					this.button('close', 	'CLOSE').on('click', this),
+					this.button('google', 	'GOOGLE').on('click', this)				
+				)
 			)
 		)
 
@@ -404,6 +465,7 @@ class UI_Dataset extends UI_Base {
 	on_page_click = e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
 	
 	page_view = (index, node) => {
+
 		var data = this._data, head = this._head_list
 		
 		data = data.slice(index, index+PER_PAGE)
@@ -422,44 +484,38 @@ class UI_Dataset extends UI_Base {
 	}
 	
 	_load = (name, type) => {
-		var meta = null // OFFLINE
-
+		var meta = null
+		
 		this.run(
+			// GET META
 			app.api({command:'storage-list', name})
-				.then(res => meta = res.data)
-				.catch(e => {
-					console.log('GET META: ERROR/OFFLINE')
-				})
-				.then(e => {
-					return app.cache_get(name).then(res => {
-						if (res) {
-							console.log('CACHED')
-							
-							if (meta) {
-								console.log('CHECK DATE')
-							}
-							
-							return res.data
-						}
+				.then(res => {
+					meta = res?.data
+					if (!(meta?.modifiedAt)) return
 
-						if (meta) {
-							// GET DATA
-							return app.api({command:'storage-data', name, type:parseInt(type||0)})
-								.catch(e => {
-									console.log('GET DATA: ERROR/OFFLINE')
-									return res.data // OFFLINE DATA
-								})
-								.then(res => {
-									if (res.raw) {
-										app.cache_set({id:name, data:res.raw, meta})
-										return res.raw
-									}
-								})
-						}
-					})
+					// meta cache
+					var id = `meta:${name}`
+					return app.cache_get(id).then(cache =>
+							app.cache_set({id, data:meta}).then(e => 
+								cache?.data?.modifiedAt !== meta.modifiedAt
+							)
+						)
 				})
 				
-				.then(raw => raw ? DecompressB64(raw).then(raw => JSON.parse(raw)) : null)
+				.catch(e => console.log('GET META: ERROR/OFFLINE/STALED'))
+				
+				.then(online => !online && (console.log('READ ...'), app.cache_get(`data:${name}`).then(res => res?.data)) )
+
+				.then(raw => raw || ( 
+							meta && app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
+								.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
+								.catch(e => console.log('GET DATA: ERROR/OFFLINE', e))
+					)
+				)
+				
+				// DECOMPRESS
+				.then(raw => raw && DecompressB64(raw).then(raw => JSON.parse(raw)))
+				
 				.then(data => {
 					// RESET
 					this._data = []
@@ -469,8 +525,7 @@ class UI_Dataset extends UI_Base {
 					this._head.clear()
 					this._list.clear()
 					
-					if (data) {
-						
+					if (data) {		
 						var head = this._head_list
 
 						// head
@@ -494,7 +549,185 @@ class UI_Dataset extends UI_Base {
 		)
 		return this
 	}
+	
+	on_google_click = e => {
+		
+		const TOKEN = 'ya29.a0Ael9sCNl0aHd_Bfs1RxpzRxaWWsAU6MAB3663xxXpB6h8BCmHdicApKxc5YIK1stFHwMGy-ukN2V-eXBC2bwhIAKCczOAH5YEObPXKW0mB7mT4QUSNqjpe7AxrdKBOp4htMXoXCNq0IXcRXE-s5wcna_LovbaCgYKAcwSARESFQF4udJhF5_uYvW6xZAgquVcyAr87w0163'
+		
+		const DOC_TITLE = 'Apify Dataset' 
+		const SHEET_TITLE = 'Dataset ID'
+		
+		const _send = (url, data) => fetch(url, {
+				method	: 'POST',
+				headers	: {'Authorization': `Bearer ${TOKEN}`},
+				body	: JSON.stringify(data)
+			})
+			.then(res => res.json())
+			.then(res => res.error ? Promise.reject(res.error) : res)
+		
+		
+		var flow = _send('https://sheets.googleapis.com/v4/spreadsheets', {
+			properties: {
+				title			: DOC_TITLE,
+				defaultFormat	: {
+					wrapStrategy: 'CLIP',
+					textFormat: {
+						fontFamily: 'Calibri'
+					}
+				}
+			},
+			sheets: [
+				{
+					properties: {
+						title: SHEET_TITLE
+					}
+				}
+			]
+		})
+		
+		.then(res => {
+
+			console.log(res) 
+			
+			var sid = res.spreadsheetId
+			
+			var head = this._head_list
+			
+			var sid = res.spreadsheetId
+			var range = SHEET_TITLE // 'Sheet1!A1:A1'
+			var data = {
+				range,
+				majorDimension: 'ROWS',
+				values: [
+					head,
+					... this._data.map( row => head.map((n,i) => {
+						var col = row[n]
+						
+						if (col === undefined || col === null)
+							return col
+						
+						if ([Object, Array].includes(col.constructor))
+							return JSON.stringify(col)
+						
+						return col
+					
+					}))
+				]
+			}
+
+			return _send(`https://sheets.googleapis.com/v4/spreadsheets/${sid}/values/${range}:append?valueInputOption=RAW`,  data)
+				.then(e => {					
+					console.log(e)
+
+					return _send(
+						`https://sheets.googleapis.com/v4/spreadsheets/${sid}:batchUpdate`,
+						{
+							requests: [
+								{
+									repeatCell: {
+										range: {
+											sheetId:  res.sheets[0].properties.sheetId
+										},
+										cell: {
+											userEnteredFormat: {
+												wrapStrategy: 'CLIP', verticalAlignment: 'TOP',
+												textFormat: {
+													fontFamily: 'Calibri'
+												}
+											}
+										},
+										fields: 'userEnteredFormat(wrapStrategy,textFormat,verticalAlignment)'
+									}
+								},
+								{
+									repeatCell: {
+										
+										range: {
+											sheetId:  res.sheets[0].properties.sheetId,
+											startRowIndex: 0,
+											endRowIndex: 1,
+										},
+										cell: {
+											userEnteredFormat: {
+												backgroundColor: { red: 11/255, green: 85/255, blue: 157/255 },
+												horizontalAlignment : 'CENTER', wrapStrategy: 'WRAP',
+												textFormat: {
+													foregroundColor: {red: 1.0, green: 1.0, blue: 1.0},
+													//fontSize: 12,
+													bold: true
+												}										
+											}
+										},
+										fields: 'userEnteredFormat(backgroundColor,textFormat,wrapStrategy,horizontalAlignment)'
+									}
+								}
+							],
+							includeSpreadsheetInResponse: false,
+							//responseRanges: [ string ],
+							responseIncludeGridData: false
+						}
+					)
+				})			
+		})
+
+		.then(res => console.log(res))
+		.catch(error => this.confirm({message:error.message, type:'error'}))
+		
+		this.run(flow)
+		
+	}
 }
+
+///////////////////////////////////////////// PROGRESS
+class UI_Progress extends UI_Base {
+	constructor() {
+		super()
+		
+		this.css('ui-progress')._(
+			this._head = _('div').css('ui-progress-text'),
+			_('div').css('ui-progress-bar')._(
+				this._line = _('div')
+			)
+		)
+		
+		this._caption = ''
+		this.update = this.update.bind(this)
+	}
+	
+	update(data) {
+		if (data) {
+			// SHOW
+			if (!this.parentNode) {
+				this._caption = ''
+				this._head.clear()
+				this._line.css({width:'0'})
+				window.document.body._(this)
+			}
+				// UPDATE
+			var {loaded, total, caption} = data
+			var per = 0
+
+			if (caption) this._caption = caption
+
+			if (loaded && total) {
+				//console.log('PROGRESS', data)
+				if (total) {
+					per = 100 * loaded / total
+					per = `${per.toFixed(2)}%`
+				}
+			}
+
+			this._head.clear()._(this._caption, per ? per: null)
+			this._line.css({width:per})
+			return
+		}
+
+		// RESET
+		this._caption = ''
+		this.remove()
+	}
+}
+
 ///////////////////////////////////////////// MAIN
 class UI_Main extends UI_Base {
 	
@@ -545,14 +778,32 @@ class UI_Main extends UI_Base {
 	
 	on_storage_click 	= e => this.set_content(_('div', {is:'ui-storage'}))
 	//on_actor_click 		= e => app.cache_get('AONaNTUtji6ymussY').then(console.log)
-	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => console.log('CODE', res)))
-	on_google_click 	= e => this.run(app.auth('google').then(res => console.log('CODE', res)))
+	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => {
+		//console.log('CODE', res)
+		app.api({command:'auth-done', data:res})
+	}))
+	on_google_click 	= e => this.run(app.auth('google').then(res => {
+		//console.log('CODE', res)
+		app.api({command:'auth-done', data:res})
+	}))
 }
 
 ////////////////////////////////////// BOOT
 
 window.on('load', e => {
+
+	// app.host = localStorage.getItem('server')||''
 	
+	customElements.define( 'ui-list-editor', 	UI_ListEditor, 	{extends:'div'} )
+	customElements.define( 'ui-actor', 			UI_Actor, 		{extends:'div'} )
+	customElements.define( 'ui-storage',		UI_Storage,		{extends:'div'} )
+	customElements.define( 'ui-dataset',		UI_Dataset, 	{extends:'div'} )
+	
+	customElements.define( 'ui-progress', 		UI_Progress, 	{extends:'div'} )
+	customElements.define( 'ui-confirm',		UI_Confirm,		{extends:'div'} )
+	customElements.define( 'ui-main', 			UI_Main, 		{extends:'div'} )
+
+
 	var query = new URLSearchParams(window.location.search)
 	var param = query.get('param')
 	if (param) {
@@ -560,16 +811,11 @@ window.on('load', e => {
 		console.log('PARAM', param)
 		app.host = param.server
 	}
-		
-	// app.host = localStorage.getItem('server')||''
-	
-	customElements.define( 'ui-list-editor', 	UI_ListEditor, 	{extends:'div'} )
-	customElements.define( 'ui-actor', 			UI_Actor, 		{extends:'div'} )
-	customElements.define( 'ui-storage',		UI_Storage,		{extends:'div'} )
-	customElements.define( 'ui-dataset',		UI_Dataset, 	{extends:'div'} )
-	customElements.define( 'ui-main', 			UI_Main, 		{extends:'div'} )
+
+	app.progress_iu = _('div', {is:'ui-progress'})	
+	app.main_ui 	= _('div', {is:'ui-main'})
 	
 	// INIT UI
-	window.document.body._( _('div', {is:'ui-main'}) )
+	window.document.body._( app.main_ui )
 	
 }, {once: true} )

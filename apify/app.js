@@ -14,7 +14,7 @@ class CMainDB {
 	
 	store = (...name) => this.open().then(db => db.transaction([...name], "readwrite").objectStore(name[0]))
 	
-	set_data = (id, data, meta) => this.store('datasets').then(store => store.put({id, data, meta}))
+	set_data = (id, data) => this.store('datasets').then(store => store.put({id, data}))
 	
 	get_data = (id) => 
 		this.store('datasets').then(store => new Promise((resolve) => {
@@ -28,28 +28,69 @@ export const app = window._app = {
 	actors	: {},
 	db		: new CMainDB(),
 
-	api(query, url) {
+	api(query, url, progress) {
 		if (!url) url = `${this.host}/api`
 		console.log('<api> <<', query)
-		
-		return fetch(url, {
+
+		var prom = fetch(url, {
 			method		: 'POST',
 			cache		: 'no-cache',
 			headers		: {'Content-Type': 'application/json'},
 			credentials	: 'omit', //'include',
 			body		: JSON.stringify(query) 
 		})
-		.then( res => res.json() )
-		.then( res => {
-            //app.alert_api( res )
-			if (res.code === 0) {
-				console.log('<api> >>', res)
-				return res
-			} else {
-				console.error('<api> >>', res)
-				return Promise.reject(res)
-			}
-		})
+		
+		if (progress) {
+			prom = prom.then(res => 
+				new Promise((resolve) => {
+					var tmp = new Response(
+						new ReadableStream({
+							async start(controller) {
+								var reader = res.body.getReader()
+								var loaded = 0
+								var total = res.headers.get('content-length')
+								console.log('TOTAL', total)
+								total = parseInt(total, 10)
+								
+								progress({caption:'downloading ... ', loaded:0, total:0})
+								
+								for (;;) {
+									var {done, value} = await reader.read()
+									//console.log('---', done, value)
+									
+									if (done) break
+
+									loaded += value.byteLength
+									try {
+										progress({loaded, total})
+									} catch (e) {
+										console.error(e)
+									}
+									controller.enqueue(value)
+								}
+								//console.log('download completed')
+								progress()
+								controller.close()
+								resolve(tmp)
+							}
+						})
+					)
+				})
+			)
+		}
+		///
+		return prom
+			.then(res => res.json())
+			.then(res => {
+				//app.alert_api( res )
+				if (res.code === 0) {
+					console.log('<api> >>', res)
+					return res
+				} else {
+					console.error('<api> >>', res)
+					return Promise.reject(res)
+				}
+			})
 	},
 	get_column(value) {
 		if (value === null) 				return _('td').css('col-empty')._('null') 
@@ -82,6 +123,8 @@ export const app = window._app = {
 	}),
 	
 	cache_get: (id) =>  new Promise((resolve) => {
+		console.log('CACHE_GET', id)
+
 		var channel = new MessageChannel()
 		channel.port1.onmessage = e => resolve(e.data)
 		
@@ -92,8 +135,10 @@ export const app = window._app = {
 	}),
 	
 	cache_set: (data) => new Promise((resolve) => {
+		console.log('CACHE_SET', data.id)
+	
 		var channel = new MessageChannel()
-		channel.port1.onmessage = e => resolve(e.data)
+		channel.port1.onmessage = e => resolve()
 		
 		// transfer port
 		app.cache_node.contentWindow.postMessage('INIT', '*', [channel.port2])
@@ -146,20 +191,23 @@ export const app = window._app = {
 		**/
 		}
 	},
+	
 	auth: (auth_type) => new Promise((resolve) => {
-		
 		app.auth_clear()
 		app.auth_resolve = resolve
 		
-		window.addEventListener("message", app.auth_state)
+		window.addEventListener("message", e => {
+			console.log('AUTH_RESULT', e)
+			resolve(e?.data?.done)
+		})
 
 		var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 		var popup = window.open( 
-			`${app.auth_url}/?redir=${auth_type}`, 
+			`${app.auth_url}/?redir=${auth_type}`,
 			`authwindow`,
 			`resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 		)
-
+		
 		// detect close
 		app.auth_timer = setInterval( (ms) => {				
 			if (popup.closed) {
@@ -167,49 +215,9 @@ export const app = window._app = {
 				resolve()
 			}
 		}, 1000)
-		return
-
-		var url = 'http://127.0.0.1:5000/auth' // bouncer url
-
-		switch(auth_type) {
-		case 'airtable'	: {url = `${url}/airtable`} break
-		case 'google'	: {url = `${url}/google`} break
-		default: 
-			resolve() 
-			return
-		}
-
-		var interval
-		var clean = () => {
-			if (interval) clearInterval(interval)
-			window.removeEventListener('message', on_message)
-		}
-		var on_message = e => {
-			clean()
-			switch (e.data.type) {
-			case 'airtable_auth':
-				console.log(e)
-				e.source.close() // close popup
-				resolve(e.data.code)
-				break
-			}
-		}
-
-		/////
-		window.addEventListener("message", on_message)
 		
-		var popup = window.open( 
-			`${url}?origin=${encodeURIComponent(window.location.href)}`, 
-			`AirTable`,
-			`resizable=yes,width=${w},height=${h},top=${t},left=${l}`
-		)
+		popup.addEventListener('load', e => popup.postMessage({type:'AUTH_INIT', server:app.host, type:auth_type}, '*') )
+		
 
-		// detect close
-		interval = setInterval( () => {				
-			if (popup.closed) {
-				clean()
-				resolve()
-			}
-		}, 1000)
 	})
 }

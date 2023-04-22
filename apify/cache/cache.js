@@ -21,8 +21,9 @@ window.on('load', e => {
 				
 			case 'set':
 				
-				var {id, data, meta} = e.data.data
-				if (id && data) await app.db.set_data(id, data, meta)
+				var {id, data} = e.data.data
+				if (id && data) await app.db.set_data(id, data)
+				port2.postMessage('OK') // some confirmation	
 				break
 			}
 		}
