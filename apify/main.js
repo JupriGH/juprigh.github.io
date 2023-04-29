@@ -17,7 +17,28 @@ const DecompressBlob = async blob => {
 	const stream = blob.stream().pipeThrough(ds)
 	return await new Response(stream).blob().then(res => res.text())
 }
+const deep_get = (node, path) => {
 
+	if (node === undefined) return node
+	if (node === null) return node
+	
+	for (var p of path) {
+		if (node === undefined) return
+		if (node === null) return
+	
+		if (node.constructor === Array) {
+			if (!p.match(/^[0-9]$/)) return
+			node = node[p]
+			continue
+		}
+		else if (node.constructor === Object) {
+			node = node[p]
+			continue
+		}
+		return
+	}
+	return node
+}
 ////////////////////////////////////// BASE INTERFACE
 
 class UI_Base extends HTMLDivElement {
@@ -316,6 +337,7 @@ class UI_Actor extends UI_Base {
 
 	}
 }
+
 ///////////////////////////////////////////// STORAGE
 class UI_Storage extends UI_Base { // storage list
 	constructor() {
@@ -360,7 +382,6 @@ class UI_Storage extends UI_Base { // storage list
 					if (type === 0) app.cache_set({id:LIST_DATASETS, data:{stores}})
 					else  			app.cache_set({id:LIST_KEYVALUE, data:{stores}})
 					
-					
 					return [actors, stores]
 				})
 				.catch(e => {
@@ -375,7 +396,7 @@ class UI_Storage extends UI_Base { // storage list
 				.then(res => { // [actors, stores]
 					
 					var [actors, stores] = res
-					console.log( stores )
+					//console.log( stores )
 					
 					if (actors)  Object.assign(app.actors, actors)
 					if (stores) {
@@ -442,12 +463,19 @@ class UI_Dataset extends UI_Base {
 		super()
 		
 		this.css('ui-modal','flex-col')._(
-			_('div').css('flex-col')._( // content
+			_('div').css('flex-col')._(
+				// title
+				this._info = _('div').css('ui-dataset-info'),
+				this._view = _('div'),
+				
+				// content
 				this._table = _('table').css('ui-table', {'flex-grow':1})._(
 					this._head = _('thead').css('sticky-t'),
 					this._list = _('tbody')
 				),
+				// pager
 				this._page = _('div').css('page-list').data({command:'page'}).on('click', this),
+				// control
 				_('div').css('button-list')._(
 					this.button('close', 	'CLOSE').on('click', this),
 					this.button('google', 	'GOOGLE').on('click', this)				
@@ -459,20 +487,29 @@ class UI_Dataset extends UI_Base {
 		this._page_item = null // selected
 		this._head_list = []		
 		this._data = []
+		this._schema = null
+		this._fields = null
 	}
 	
-	on_close_click = e => this.on('animationend', e => this.remove()) && this.css({'animation':'animate-zoom-out 0.5s'})
-	on_page_click = e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
+	on_close_click 	= e => app.animate_close(this)
+	on_page_click 	= e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
+	
+	head_view = () => {
+		var	head = this._head_list.map(e => e.label)
+		this._head.clear()._( _('tr')._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) ) )
+	}
 	
 	page_view = (index, node) => {
-
-		var data = this._data, head = this._head_list
+		
+		var data = this._data, 
+			head = this._head_list
 		
 		data = data.slice(index, index+PER_PAGE)
+				
 		this._list.clear()._(
 			... data.map(e => _('tr')._(
 				_('th').css('row-index','sticky-l')._(++ index),
-				... head.map((n,i) => app.get_column(e[n]).data({head:head[i]}))
+				... head.map(h => app.get_column(deep_get(e, h.path)).data({head:h.label}))
 			))
 		)
 		this._table.scroll({top:0, left:0}) //, behavior:'smooth'})
@@ -484,70 +521,141 @@ class UI_Dataset extends UI_Base {
 	}
 	
 	_load = (name, type) => {
-		var meta = null
-		
+
 		this.run(
-			// GET META
-			app.api({command:'storage-list', name})
-				.then(res => {
-					meta = res?.data
-					if (!(meta?.modifiedAt)) return
+		
+		Promise.all([
+			app.api({command:'storage-list', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
+			app.cache_get(`meta:${name}`).then(res => res?.data)
+		])
+		.then(res => {
+			
+			var task = []
+			var [fresh, cache] = res
 
-					// meta cache
-					var id = `meta:${name}`
-					return app.cache_get(id).then(cache =>
-							app.cache_set({id, data:meta}).then(e => 
-								cache?.data?.modifiedAt !== meta.modifiedAt
-							)
-						)
-				})
-				
-				.catch(e => console.log('GET META: ERROR/OFFLINE/STALED'))
-				
-				.then(online => !online && (console.log('READ ...'), app.cache_get(`data:${name}`).then(res => res?.data)) )
+			this._meta = fresh || cache
 
-				.then(raw => raw || ( 
-							meta && app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
-								.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
-								.catch(e => console.log('GET DATA: ERROR/OFFLINE', e))
-					)
+			if (!fresh || (cache && (cache.modifiedAt === fresh.modifiedAt))) {
+							
+				// CACHE
+				return app.cache_get(`data:${name}`).then(res => res?.data)
+			
+			} else {
+
+				// STALE
+				if (fresh) {
+					
+					// SAVE META
+					app.cache_set({id:`meta:${name}`, data:fresh})
+					
+					return app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
+						.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
+						.catch(e => console.log('GET DATA: ERROR'))
+				}
+			}
+		})
+		
+		.then(raw => raw && DecompressB64(raw).then(raw => JSON.parse(raw)))
+		
+		.then(data => {
+			
+			// RESET
+			this._data = []
+			this._page_item = null
+			this._head_list.length = 0
+			this._page.clear()
+			this._head.clear()
+			this._list.clear()
+			
+			this._info.clear()
+			this._view.clear()
+
+			if (data) {
+
+				var meta = this._meta
+
+				// TITLE
+				var actor = meta && meta.actId && app.actors[meta.actId]
+
+				this._info._(
+					_('span').data({title:'ACTOR'})._(
+						(actor?.pictureUrl) && _('img').css('actor-icon').attr({src: actor.pictureUrl}),
+						actor?.title || '<unknown-actor>'
+					),
+					
+					_('span').data({title:'ID'})._(meta.id),
+					_('span').data({title:'NAME'})._(meta.name || '<noname>'),
+					_('span').data({title:'ITEMS'})._(meta.itemCount || 0)
 				)
 				
-				// DECOMPRESS
-				.then(raw => raw && DecompressB64(raw).then(raw => JSON.parse(raw)))
+				// VIEW
+				var views = this._meta?.schema?.views
 				
-				.then(data => {
-					// RESET
-					this._data = []
-					this._page_item = null
-					this._head_list.length = 0
-					this._page.clear()
-					this._head.clear()
-					this._list.clear()
-					
-					if (data) {		
-						var head = this._head_list
-
-						// head
-						for (var e of data)
-							for (var k of Object.keys(e))
-								if (!head.includes(k)) head.push(k)
-
-						this._head._( _('tr')._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) ) )
-
-						// list						
-						for (var p = 0; p < data.length; p += PER_PAGE) {
-							this._page._(_('span').css('page-item').data({page:p})._(`${p+1}-${p+PER_PAGE}`))
+				this._view._(
+					this.button('', 'ALL').data({command:'view',view:'all'}),
+					... (views ? Object.keys(views).map( e => this.button(e, views[e]?.title||e).data({command:'view',view:e}) ) : []),
+					this.button('', 'ADD').data({command:'custom'}),
+				)
+				
+				// FIELDS
+				var sel = {}
+				var col = meta?.fields
+				
+				if (col) {
+					for (var c of col) {
+						c = c.split('/')
+						var node = sel
+						for (var t of c) {
+							if (!(node[t])) node[t] = {}
+							node = node[t]
 						}
-						this._data = data
-						this.page_view(0)
 					}
-				})
-			,
+				}
+				this._fields = sel
+				
+				// HEAD
+				var head = []
 
-			this.parentNode
+				for (var e of data)
+					for (var k of Object.keys(e))
+						if (!head.includes(k)) head.push(k)
+
+				this._head_all = this._head_list = head.map(e => ({label:e, path:e.split('.')}))
+				this.head_view()
+
+				// DATA						
+				for (var p = 0; p < data.length; p += PER_PAGE) {
+					this._page._(_('span').css('page-item').data({page:p})._(`${p+1}-${p+PER_PAGE}`))
+				}
+				this._data = data
+				this.page_view(0)
+			}
+		})
+		
 		)
 		return this
+	}
+	
+	on_custom_click = e => {
+		
+		new Promise((resolve) => this._( _('div', {is:'ui-fields-selector'})._load(this._fields, undefined, resolve) ))
+		.then(res => console.log(res))
+				
+	}
+	on_view_click = e => {
+		var { view } = e.target.dataset
+		
+		if (view === 'all') {
+			this._head_list = this._head_all
+			
+		} else if (view) {
+			var columns = this._meta?.schema?.views[view]?.display?.columns 
+			console.log(columns)
+			this._head_list = columns.map(e => ({label:e.label||e.field, format:e.format, path:e.field.replace(/\[(\d+)\]/g, '.$1').split('.')}) )
+		}
+
+		this.head_view()
+		this.page_view(0)
 	}
 	
 	on_google_click = e => {
@@ -678,6 +786,92 @@ class UI_Dataset extends UI_Base {
 	}
 }
 
+///////////////////////////////////////////// FIELDS SELECTOR
+
+class UI_FieldSelector extends UI_Base {
+	constructor() {
+		super()
+		this.css('ui-modal','flex-col')._(
+			// CONTENT
+			_('div').css('ui-fields-selector','flex-row')._(
+				// LEFT
+				_('div').css('flex-col', {'flex-shrink':0})._(
+					_('div').css('ui-big-title')._('Select Fields'),
+					this._select = _('div').css('flex-col', {'flex-grow':1}),
+				),
+				
+				// RIGHT
+				_('div').css('flex-col', {'flex-grow':1})._(
+					_('div').css('ui-big-title')._('Custom View'),
+					//this._list = _('div').data({command:'remove'}).on('click', this),
+					_('div').css('flex-col', {'flex-grow':1})._(
+						_('table').css({display:'block'})._(
+							_('thead')._(_('tr')._( _('th')._('Name'), _('th')._('Source') )),
+							this._list = _('tbody')
+						)
+					),
+					_('div')._(
+						this.button('reset', 	'RESET'),
+						this.button('cancel', 	'CANCEL'),
+						this.button('done', 	'DONE')
+					)
+				)
+			)
+		)
+		
+	}
+	
+	deselect = key => {
+		for (var e of this._list.querySelectorAll(`tr[data-key="${key}"]`)) 
+			e.remove()
+		for (var e of this._select.querySelectorAll(`span[data-key="${key}"]`))
+			delete e.dataset.selected
+	}
+	
+	
+	_load = (root, list, resolve) => {
+		// recursive
+		const __get = (node, path = []) => {
+			var keys = Object.keys(node)
+			if (keys.length)
+				return _('ul')._(
+					... Object.keys(node).map( e => _('li')._( _('span').data({key:[...path, e].join('.')})._(e), __get(node[e], [...path, e]) ) )
+				)
+		}
+		
+		// start
+		this._resolve = resolve
+		this._select.clear()._( __get(root).data({command:'select'}).on('click',this) )
+		return this
+	}		
+
+	on_done_click 	= e => app.animate_close(this) && this._resolve('OK')
+	on_cancel_click = e => app.animate_close(this)
+	on_reset_click 	= e => {
+		this._list.clear()
+		for (var e of this._select.querySelectorAll(`span[data-selected]`))
+			delete e.dataset.selected		
+	}
+	
+	on_select_click = e => {
+		var t = e.target, d = t.dataset
+		var key = d.key
+		if (key) {
+			if (d.selected) {
+				this.deselect(key)
+			} else {
+				d.selected = 1
+			
+				this._list._( _('tr').data({key})._(  
+					_('td')._( _('input').attr({type:'text', size:40, placeholder:key}) ),
+					_('td')._( _('span')._(key) )
+				) )
+			}
+		}
+	}
+
+}
+
 ///////////////////////////////////////////// PROGRESS
 class UI_Progress extends UI_Base {
 	constructor() {
@@ -794,14 +988,14 @@ window.on('load', e => {
 
 	// app.host = localStorage.getItem('server')||''
 	
-	customElements.define( 'ui-list-editor', 	UI_ListEditor, 	{extends:'div'} )
-	customElements.define( 'ui-actor', 			UI_Actor, 		{extends:'div'} )
-	customElements.define( 'ui-storage',		UI_Storage,		{extends:'div'} )
-	customElements.define( 'ui-dataset',		UI_Dataset, 	{extends:'div'} )
-	
-	customElements.define( 'ui-progress', 		UI_Progress, 	{extends:'div'} )
-	customElements.define( 'ui-confirm',		UI_Confirm,		{extends:'div'} )
-	customElements.define( 'ui-main', 			UI_Main, 		{extends:'div'} )
+	customElements.define( 'ui-list-editor', 		UI_ListEditor, 		{extends:'div'} )
+	customElements.define( 'ui-actor', 				UI_Actor, 			{extends:'div'} )
+	customElements.define( 'ui-storage',			UI_Storage,			{extends:'div'} )
+	customElements.define( 'ui-dataset',			UI_Dataset, 		{extends:'div'} )
+	customElements.define( 'ui-fields-selector',	UI_FieldSelector,	{extends:'div'} )
+	customElements.define( 'ui-progress', 			UI_Progress, 		{extends:'div'} )
+	customElements.define( 'ui-confirm',			UI_Confirm,			{extends:'div'} )
+	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )
 
 
 	var query = new URLSearchParams(window.location.search)

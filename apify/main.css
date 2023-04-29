@@ -52,7 +52,15 @@ input[type="text"],  input[type="password"], input[type="number"], input[type="d
 }
 
 input[type="text"],  input[type="password"], input[type="number"], input[type="date"] { width: 300px; }
+input::placeholder {
+	font-style: italic;
+	color: #b0b0b0;
+}
+
 select { width: 200px; cursor: pointer; }
+th {
+	font-size: larger;
+}
 td {
     white-space: nowrap;
     vertical-align: top;
@@ -64,7 +72,7 @@ button {
     margin: 2px; 
 }
 table {
-    border: 1px solid red;
+    /*border: 1px solid red;*/
 }
 
 
@@ -100,6 +108,16 @@ td.col-number 	{ color: mediumpurple; text-align: right; }
 td.col-object 	{ color: darkgray; }
 td.col-array 	{ color: darkgray; }
 td.col-date 	{ color: deepskyblue; }
+
+.ui-big-title {
+	font-size: x-large;
+	text-align: center;
+	font-family: Calibri;
+	border-radius: 3px;
+	padding: 5px;
+	background-color: #ffeb3b;
+	min-width: 300px;
+}
 
 .button-list {flex-shrink:0;}
 .page-list { padding: 5px; flex-shrink:0;}
@@ -257,6 +275,35 @@ td.col-date 	{ color: deepskyblue; }
 .ui-main-content {flex-grow: 1}
 .ui-main-menu {flex-shrink: 0}
 .ui-main-content > :first-child {flex-grow:1}
+
+
+.ui-fields-selector ul {
+	list-style: none;
+    padding: 2px;
+    border: 2px solid transparent;
+    margin: 0 10px;
+    border-radius: 5px;
+}
+.ui-fields-selector ul:hover {
+    /*border: 2px solid #f0f0f0;*/
+	background-color: rgba(0,0,0,0.05)
+}
+.ui-fields-selector span {
+	cursor: pointer;
+    display: inline-block;
+    padding: 2px 5px;
+    border-radius: 3px;
+	margin: 1px;
+}
+.ui-fields-selector span[data-selected] {
+	background-color: #0066bf;
+	color: #ffffff;
+}
+.ui-fields-selector span:hover {
+	color: white;
+	background-color: black;
+}
+
 
 /* */
 .ui-section-caption {    
