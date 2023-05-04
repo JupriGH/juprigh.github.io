@@ -39,6 +39,7 @@ const deep_get = (node, path) => {
 	}
 	return node
 }
+
 ////////////////////////////////////// BASE INTERFACE
 
 class UI_Base extends HTMLDivElement {
@@ -464,10 +465,11 @@ class UI_Dataset extends UI_Base {
 		
 		this.css('ui-modal','flex-col')._(
 			_('div').css('flex-col')._(
-				// title
-				this._info = _('div').css('ui-dataset-info'),
-				this._view = _('div'),
-				
+				_('div').css('flex-row', {'align-items': 'center', 'flex-shrink':0})._(
+					// title
+					this._info = _('div').css('ui-dataset-info'),
+					this._view = _('div').css('ui-dataset-view'),
+				),
 				// content
 				this._table = _('table').css('ui-table', {'flex-grow':1})._(
 					this._head = _('thead').css('sticky-t'),
@@ -476,7 +478,7 @@ class UI_Dataset extends UI_Base {
 				// pager
 				this._page = _('div').css('page-list').data({command:'page'}).on('click', this),
 				// control
-				_('div').css('button-list')._(
+				_('div').css('button-list', {'flex-shrink':0})._(
 					this.button('close', 	'CLOSE').on('click', this),
 					this.button('google', 	'GOOGLE').on('click', this)				
 				)
@@ -492,7 +494,7 @@ class UI_Dataset extends UI_Base {
 	}
 	
 	on_close_click 	= e => app.animate_close(this)
-	on_page_click 	= e => this.page_view(parseInt(e.target.dataset.page||0), e.target)
+	on_page_click 	= e => e.target.dataset.page && this.page_view(parseInt(e.target.dataset.page||0), e.target)
 	
 	head_view = () => {
 		var	head = this._head_list.map(e => e.label)
@@ -578,13 +580,14 @@ class UI_Dataset extends UI_Base {
 				var actor = meta && meta.actId && app.actors[meta.actId]
 
 				this._info._(
-					_('span').data({title:'ACTOR'})._(
+					_('span')._(
 						(actor?.pictureUrl) && _('img').css('actor-icon').attr({src: actor.pictureUrl}),
 						actor?.title || '<unknown-actor>'
 					),
 					
 					_('span').data({title:'ID'})._(meta.id),
-					_('span').data({title:'NAME'})._(meta.name || '<noname>'),
+					meta?.name ? _('span').data({title:'NAME'})._(meta.name) : null,
+					_('span').data({title:'CREATED'})._(new Date(meta.createdAt * 1000).toLocaleString('en-GB')),
 					_('span').data({title:'ITEMS'})._(meta.itemCount || 0)
 				)
 				
@@ -659,6 +662,13 @@ class UI_Dataset extends UI_Base {
 	}
 	
 	on_google_click = e => {
+		app.api({
+			command: 'export',
+			dataset: this._meta.id,
+			type: 'google',
+			head: this._head_list,
+		})
+		return
 		
 		const TOKEN = 'ya29.a0Ael9sCNl0aHd_Bfs1RxpzRxaWWsAU6MAB3663xxXpB6h8BCmHdicApKxc5YIK1stFHwMGy-ukN2V-eXBC2bwhIAKCczOAH5YEObPXKW0mB7mT4QUSNqjpe7AxrdKBOp4htMXoXCNq0IXcRXE-s5wcna_LovbaCgYKAcwSARESFQF4udJhF5_uYvW6xZAgquVcyAr87w0163'
 		
