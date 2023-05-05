@@ -36,7 +36,7 @@ export const app = window._app = {
 			method		: 'POST',
 			cache		: 'no-cache',
 			headers		: {'Content-Type': 'application/json'},
-			credentials	: 'omit', //'include',
+			//credentials	: 'omit', //'include',
 			body		: JSON.stringify(query) 
 		})
 		
