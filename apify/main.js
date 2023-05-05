@@ -7,16 +7,37 @@ const 	LIST_ACTORS   = '__ACTORS__',
 
 const	PER_PAGE = 100
 
-const DecompressB64 = async data => {
-	var arr = new Uint8Array(atob(data).split('').map(e => e.charCodeAt(0)))
-	var blob = new Blob([arr.buffer])
-	return DecompressBlob(blob)
-}
-const DecompressBlob = async blob => {
+////////////////////////////////////// UTILS
+const range = (min,max,step=1) => Array.from({length:Math.ceil((max-min)/step)}, (_,i) => min + (i * step))
+
+const DeCompressBlob = async blob => {
 	const ds = new DecompressionStream("gzip")
 	const stream = blob.stream().pipeThrough(ds)
 	return await new Response(stream).blob().then(res => res.text())
 }
+
+const DeCompressB64 = async data => {
+	var arr = Uint8Array.from(atob(data), c => c.charCodeAt(0))
+	var blob = new Blob([arr.buffer])
+	return DeCompressBlob(blob)
+}
+
+
+const CompressText = async source => {
+	const cs = new CompressionStream("gzip")
+	const blob = new Blob([source])
+	const stream = blob.stream().pipeThrough(cs)
+	return await new Response(stream)
+}
+/**
+const TDecompress = async source => {
+	const ds = new DecompressionStream("gzip")
+	const blob = new Blob([source])
+	const stream = blob.stream().pipeThrough(ds)
+	return await new Response(stream)
+}
+**/
+
 const deep_get = (node, path) => {
 
 	if (node === undefined) return node
@@ -51,7 +72,16 @@ class UI_Base extends HTMLDivElement {
 	
 	run(promise, element) {
 		(element||this).dataset.running = 1
-		promise.finally(() => delete (element||this).dataset.running)
+		
+		promise
+		.catch(e => {
+			var arg = undefined
+				 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
+			else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
+			else 				arg = {message:'unknown error', type:'error'}
+			return this.confirm(arg)
+		})
+		.finally(() => delete (element||this).dataset.running)
 	}
 	
 	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
@@ -63,13 +93,33 @@ class UI_Base extends HTMLDivElement {
 
 	handleEvent(e, ... args) {		
 		var command = e.currentTarget.dataset.command ?? e.target.dataset.command
-
 		command = command ? `on_${command}_${e.type}` : `on_${e.type}`
 		command = command.replace('-','_')
 
 		if (this[command]) this[command](e, ... args)
-		else
-			console.warn('event:', command, ... args)
+		else console.warn('event:', command, ... args)
+	}
+}
+
+////////////////////////////////////// BUTTON LIST
+class UI_Pager extends UI_Base {
+	constructor() {
+		super()
+		this._item = null // selected	
+		this.on('click', this.on_button.bind(this))
+	}
+	// [value, label], ...
+	_add = (... entries) => this._( ... entries.map(e => _('span').css('ui-button-item').data({value:e[0]})._(e[1])) )
+	
+	on_button = e => {
+		var t =  e.target, value = t.dataset.value
+		if (value !== undefined) {
+			if (value) {
+				if (this._item) delete this._item.dataset.selected
+				this._item = t.data({selected:1})
+			}
+			this.fire('change', value)
+		}		
 	}
 }
 
@@ -85,10 +135,9 @@ class UI_Confirm extends UI_Base {
 		this._callback = callback 
 		
 		var btn = buttons ? buttons : ['Ok']
-		var is_alert = ['alert','error'].includes(type)
-		
-		if (is_alert) 			this.css(`ui-confirm-${type}`)
-		else if (!buttons) 		btn.push('Cancel')
+
+		if (['alert','error'].includes(type)) 	this.css(`ui-confirm-${type}`)
+		else if (!buttons) 	 					btn.push('Cancel')
 		
 		btn = btn.map((b,i) => this.button('button', b).data({index: i}))
 		this.clear()._(
@@ -351,7 +400,7 @@ class UI_Storage extends UI_Base { // storage list
 			),
 			_('table').css('ui-table')._(
 				_('thead').css('sticky-t')._(
-					_('tr')._(['#', 'ID', 'Name', 'Items', 'Created','Modified','Size','Inflate', '', 'Actor'].map(e => _('th')._(e)))),
+					_('tr')._(['#', 'Actor', 'Dataset-ID', 'Name', 'Items', 'Created','Modified','Size','Inflate'].map(e => _('th')._(e)))),
 				this._list = _('tbody').data({command:'cell'}).on('click', this)
 			)
 		)
@@ -421,17 +470,19 @@ class UI_Storage extends UI_Base { // storage list
 
 			return _('tr').data({id:e.id, type:this._type})._(
 					_('th')._(++no),
-					_('td')._(e.id),
+					_('td')._(
+						actor ? [ 
+							(actor.pictureUrl) 	? _('img').css('actor-icon').attr({src: actor.pictureUrl}) : null, 
+							(actor.title) 		? _('span')._(actor.title) : null
+						] : null
+					),
+					_('td')._(`📁 ${e.id}`),
 					_('td')._(e.name),
 					app.get_column(e.itemCount),
 					app.get_column(new Date(e.createdAt * 1000)),
 					app.get_column(new Date(e.modifiedAt * 1000)),
 					app.get_column(e.stats?.s3StorageBytes),
 					app.get_column(e.stats?.inflatedBytes),
-					_('td')._(
-						(actor?.pictureUrl) ? _('img').css('actor-icon').attr({src: actor?.pictureUrl}) : null
-					),
-					_('td')._(actor?.title??null)
 			)
 		}))
 		return this
@@ -447,7 +498,7 @@ class UI_Storage extends UI_Base { // storage list
 	*/	
 	on_cell_click(e) {
 		var o = e.target 
-		if (o.tagName.toUpperCase() == 'TD' && o.cellIndex == 1) {
+		if (o.tagName.toUpperCase() == 'TD' && o.cellIndex == 2) {
 			var {id, type} = o.parentNode.dataset
 			//this.fire('dataset-open', {id, type:parseInt(type||0)}, true)
 			
@@ -468,17 +519,19 @@ class UI_Dataset extends UI_Base {
 				_('div').css('flex-row', {'align-items': 'center', 'flex-shrink':0})._(
 					// title
 					this._info = _('div').css('ui-dataset-info'),
-					this._view = _('div').css('ui-dataset-view'),
+					this._view = _('div', {is: 'ui-pager'}).css('ui-dataset-view').data({command:'view'}).on('change',this),
 				),
 				// content
 				this._table = _('table').css('ui-table', {'flex-grow':1})._(
 					this._head = _('thead').css('sticky-t'),
 					this._list = _('tbody')
 				),
+				
 				// pager
-				this._page = _('div').css('page-list').data({command:'page'}).on('click', this),
+				this._page = _('div', {is: 'ui-pager'}).css('ui-page-list').data({command:'page'}).on('change',this),
+				
 				// control
-				_('div').css('button-list', {'flex-shrink':0})._(
+				_('div').css('button-list')._(
 					this.button('close', 	'CLOSE').on('click', this),
 					this.button('google', 	'GOOGLE').on('click', this)				
 				)
@@ -486,25 +539,140 @@ class UI_Dataset extends UI_Base {
 		)
 
 		// data
-		this._page_item = null // selected
 		this._head_list = []		
 		this._data = []
 		this._schema = null
 		this._fields = null
 	}
-	
-	on_close_click 	= e => app.animate_close(this)
-	on_page_click 	= e => e.target.dataset.page && this.page_view(parseInt(e.target.dataset.page||0), e.target)
+
+	_load = (name, type) => {
+
+		this.run(
+		
+			Promise.all([
+				app.api({command:'storage-list', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
+				app.cache_get(`meta:${name}`).then(res => res?.data)
+			])
+			.then(res => {
+
+				console.log('RES #1', res)
+				
+				var task = []
+				var [fresh, cache] = res
+
+				this._meta = fresh || cache
+
+				if (!fresh || (cache && (cache.modifiedAt === fresh.modifiedAt))) {
+								
+					// CACHE
+					return app.cache_get(`data:${name}`)
+				
+				} else {
+
+					// STALE
+					if (fresh) {
+						
+						// SAVE META
+						app.cache_set({id:`meta:${name}`, data:fresh})
+						
+					}
+				}
+			})
+			.then(res => 
+				res || 
+				(
+					console.log('GET FRESH DATA!'),
+					app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
+						.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
+					//.catch(e => console.log('GET DATA: ERROR'))
+				)
+			)
+			.then(raw => raw && DeCompressB64(raw).then(raw => JSON.parse(raw)))
+			.then(data => {
+
+				// RESET
+				this._data = []
+				this._head_list.length = 0
+				
+				this._info.clear()
+				this._head.clear()
+				this._list.clear()
+				this._view.clear()
+				this._page.clear()
+
+				if (data) {
+
+					var meta = this._meta
+
+					// TITLE
+					var actor = meta && meta.actId && app.actors[meta.actId]
+
+					this._info._(
+						_('span')._(
+							(actor?.pictureUrl) && _('img').css('actor-icon').attr({src: actor.pictureUrl}),
+							actor?.title || '<unknown-actor>'
+						),
+						
+						_('span').data({title:'ID'})._(meta.id),
+						meta?.name ? _('span').data({title:'NAME'})._(meta.name) : null,
+						_('span').data({title:'CREATED'})._(new Date(meta.createdAt * 1000).toLocaleString('en-GB')),
+						_('span').data({title:'ITEMS'})._(meta.itemCount || 0)
+					)
+					
+					// VIEW
+					var views = this._meta?.schema?.views
+					
+					this._view._add(
+						['all','All'],
+						... (views ? Object.keys(views).map( e => [e, views[e]?.title||e]) : []),
+						['add', 'ADD']
+					)
+					
+					// FIELDS
+					var sel = {}
+					var col = meta?.fields
+					
+					if (col) {
+						for (var c of col) {
+							c = c.split('/')
+							var node = sel
+							for (var t of c) {
+								if (!(node[t])) node[t] = {}
+								node = node[t]
+							}
+						}
+					}
+					this._fields = sel
+					
+					// HEAD
+					var head = []
+
+					for (var e of data)
+						for (var k of Object.keys(e))
+							if (!head.includes(k)) head.push(k)
+
+					this._head_all = this._head_list = head.map(e => ({label:e, path:e.split('.')}))
+					this.head_view()
+
+					// PAGE
+					this._page._add(... range(0, data.length, PER_PAGE).map(p => [p, `${p+1}-${p+PER_PAGE}`]))
+
+					this._data = data
+					this.page_view(0)
+				}
+			})
+		)
+		return this
+	}
 	
 	head_view = () => {
 		var	head = this._head_list.map(e => e.label)
 		this._head.clear()._( _('tr')._( _('th').css('sticky-l')._('#'), ... head.map(n => _('th')._(n) ) ) )
 	}
 	
-	page_view = (index, node) => {
+	page_view = index => {
 		
-		var data = this._data, 
-			head = this._head_list
+		var data = this._data, head = this._head_list
 		
 		data = data.slice(index, index+PER_PAGE)
 				
@@ -515,146 +683,37 @@ class UI_Dataset extends UI_Base {
 			))
 		)
 		this._table.scroll({top:0, left:0}) //, behavior:'smooth'})
-		//
-		if (node) {
-			if (this._page_item) delete this._page_item.dataset.selected
-			this._page_item = node.data({selected:1})
-		}
 	}
 	
-	_load = (name, type) => {
+	on_close_click = e => app.animate_close(this)
+	on_page_change = e => this.page_view(parseInt(e.detail))
+	on_view_change = e => {
 
-		this.run(
-		
-		Promise.all([
-			app.api({command:'storage-list', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
-			app.cache_get(`meta:${name}`).then(res => res?.data)
-		])
-		.then(res => {
-			
-			var task = []
-			var [fresh, cache] = res
-
-			this._meta = fresh || cache
-
-			if (!fresh || (cache && (cache.modifiedAt === fresh.modifiedAt))) {
-							
-				// CACHE
-				return app.cache_get(`data:${name}`).then(res => res?.data)
-			
-			} else {
-
-				// STALE
-				if (fresh) {
-					
-					// SAVE META
-					app.cache_set({id:`meta:${name}`, data:fresh})
-					
-					return app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
-						.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
-						.catch(e => console.log('GET DATA: ERROR'))
-				}
-			}
-		})
-		
-		.then(raw => raw && DecompressB64(raw).then(raw => JSON.parse(raw)))
-		
-		.then(data => {
-			
-			// RESET
-			this._data = []
-			this._page_item = null
-			this._head_list.length = 0
-			this._page.clear()
-			this._head.clear()
-			this._list.clear()
-			
-			this._info.clear()
-			this._view.clear()
-
-			if (data) {
-
-				var meta = this._meta
-
-				// TITLE
-				var actor = meta && meta.actId && app.actors[meta.actId]
-
-				this._info._(
-					_('span')._(
-						(actor?.pictureUrl) && _('img').css('actor-icon').attr({src: actor.pictureUrl}),
-						actor?.title || '<unknown-actor>'
-					),
-					
-					_('span').data({title:'ID'})._(meta.id),
-					meta?.name ? _('span').data({title:'NAME'})._(meta.name) : null,
-					_('span').data({title:'CREATED'})._(new Date(meta.createdAt * 1000).toLocaleString('en-GB')),
-					_('span').data({title:'ITEMS'})._(meta.itemCount || 0)
-				)
-				
-				// VIEW
-				var views = this._meta?.schema?.views
-				
-				this._view._(
-					this.button('', 'ALL').data({command:'view',view:'all'}),
-					... (views ? Object.keys(views).map( e => this.button(e, views[e]?.title||e).data({command:'view',view:e}) ) : []),
-					this.button('', 'ADD').data({command:'custom'}),
-				)
-				
-				// FIELDS
-				var sel = {}
-				var col = meta?.fields
-				
-				if (col) {
-					for (var c of col) {
-						c = c.split('/')
-						var node = sel
-						for (var t of c) {
-							if (!(node[t])) node[t] = {}
-							node = node[t]
-						}
-					}
-				}
-				this._fields = sel
-				
-				// HEAD
-				var head = []
-
-				for (var e of data)
-					for (var k of Object.keys(e))
-						if (!head.includes(k)) head.push(k)
-
-				this._head_all = this._head_list = head.map(e => ({label:e, path:e.split('.')}))
-				this.head_view()
-
-				// DATA						
-				for (var p = 0; p < data.length; p += PER_PAGE) {
-					this._page._(_('span').css('page-item').data({page:p})._(`${p+1}-${p+PER_PAGE}`))
-				}
-				this._data = data
-				this.page_view(0)
-			}
-		})
-		
-		)
-		return this
-	}
-	
-	on_custom_click = e => {
-		
-		new Promise((resolve) => this._( _('div', {is:'ui-fields-selector'})._load(this._fields, undefined, resolve) ))
-		.then(res => console.log(res))
-				
-	}
-	on_view_click = e => {
-		var { view } = e.target.dataset
-		
-		if (view === 'all') {
+		var view = e.detail
+		switch (view) {
+		case 'all':
 			this._head_list = this._head_all
+			break
 			
-		} else if (view) {
-			var columns = this._meta?.schema?.views[view]?.display?.columns 
-			console.log(columns)
-			this._head_list = columns.map(e => ({label:e.label||e.field, format:e.format, path:e.field.replace(/\[(\d+)\]/g, '.$1').split('.')}) )
+		case 'add':
+			new Promise((resolve) => this._( _('div', {is:'ui-fields-selector'})._load(this._fields, undefined, resolve) ))
+				.then(res => console.log(res))
+			return
+			
+		default:
+			
+			if (!view) return
+			var dis = this._meta?.schema?.views[view]?.display
+			if (!dis) return
+				
+			var col = undefined
+			if (col = dis.columns)
+				col = col.map(e => ({label:e.label||e.field, format:e.format, path:e.field.replace(/\[(\d+)\]/g, '.$1').split('.')}) )
+			else if (col = dis.properties)
+				col = Object.entries(col).map(e => ({label:e[1].label||e[0], format:e[1].format, path:e[0].replace(/\[(\d+)\]/g, '.$1').split('.')}) )
+
+			if (col) this._head_list = col 
+			else return
 		}
 
 		this.head_view()
@@ -662,12 +721,33 @@ class UI_Dataset extends UI_Base {
 	}
 	
 	on_google_click = e => {
-		app.api({
+		
+		var head = this._head_list
+		var data = this._data
+		
+		var tmp = data.map(e => Object.fromEntries(head.map(h => [h.label, deep_get(e, h.path)])))
+		tmp = JSON.stringify(tmp)
+		
+		
+		//console.log(tmp)
+		
+		CompressText(tmp).then( r => r.arrayBuffer() ).then( b => console.log( 
+			//btoa(String.fromCharCode(... new Uint8Array(b))) 
+			btoa(new TextDecoder('utf-8').decode(b))
+		) )
+		
+		
+		/**
+		
+		this.run(
+			app.api({
 			command: 'export',
 			dataset: this._meta.id,
 			type: 'google',
 			head: this._head_list,
-		})
+			})
+		)
+		**/
 		return
 		
 		const TOKEN = 'ya29.a0Ael9sCNl0aHd_Bfs1RxpzRxaWWsAU6MAB3663xxXpB6h8BCmHdicApKxc5YIK1stFHwMGy-ukN2V-eXBC2bwhIAKCczOAH5YEObPXKW0mB7mT4QUSNqjpe7AxrdKBOp4htMXoXCNq0IXcRXE-s5wcna_LovbaCgYKAcwSARESFQF4udJhF5_uYvW6xZAgquVcyAr87w0163'
@@ -982,14 +1062,9 @@ class UI_Main extends UI_Base {
 	
 	on_storage_click 	= e => this.set_content(_('div', {is:'ui-storage'}))
 	//on_actor_click 		= e => app.cache_get('AONaNTUtji6ymussY').then(console.log)
-	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => {
-		//console.log('CODE', res)
-		app.api({command:'auth-done', data:res})
-	}))
-	on_google_click 	= e => this.run(app.auth('google').then(res => {
-		//console.log('CODE', res)
-		app.api({command:'auth-done', data:res})
-	}))
+	
+	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => res && app.api({command:'auth-done', data:res})))
+	on_google_click 	= e => this.run(app.auth('google')	.then(res => res && app.api({command:'auth-done', data:res})))
 }
 
 ////////////////////////////////////// BOOT
@@ -1005,6 +1080,7 @@ window.on('load', e => {
 	customElements.define( 'ui-fields-selector',	UI_FieldSelector,	{extends:'div'} )
 	customElements.define( 'ui-progress', 			UI_Progress, 		{extends:'div'} )
 	customElements.define( 'ui-confirm',			UI_Confirm,			{extends:'div'} )
+	customElements.define( 'ui-pager',				UI_Pager, 			{extends:'div'} )
 	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )
 
 

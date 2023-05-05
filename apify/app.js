@@ -40,7 +40,7 @@ export const app = window._app = {
 			body		: JSON.stringify(query) 
 		})
 		
-		if (progress) {
+		if (0) { // (progress) {
 			prom = prom.then(res => 
 				new Promise((resolve) => {
 					var tmp = new Response(
@@ -80,9 +80,26 @@ export const app = window._app = {
 		}
 		///
 		return prom
-			.then(res => res.json())
 			.then(res => {
-				//app.alert_api( res )
+				console.log('HEADERS', ... res.headers)
+				
+				var r = res.headers.get('x-api-response')
+				if (r) {
+					// header + content
+					console.log('#1')
+					return res.arrayBuffer().then(res => [JSON.parse(r), res])
+				} else {
+					console.log('#2')
+					return res.json().then(res => [res]).catch(err => (console.error(err),[undefined]))
+				}
+			})
+			.then(res => {
+				console.log( 'RES', res )
+				/**
+				var [res, raw] = res
+				
+				if (raw) console.log('RAW', raw)
+
 				if (res.code === 0) {
 					console.log('<api> >>', res)
 					return res
@@ -90,6 +107,7 @@ export const app = window._app = {
 					console.error('<api> >>', res)
 					return Promise.reject(res)
 				}
+				**/
 			})
 	},
 	
@@ -154,7 +172,7 @@ export const app = window._app = {
 	}),
 	
 	////////////////////////////////////////////////// OAUTH
-	auth_url		: './auth', 	// bouncer
+	auth_url		: './auth',	// bouncer url
 	auth_resolve	: null, 	// callback
 	auth_timer		: null, 	// detect popup closed
 
@@ -164,50 +182,33 @@ export const app = window._app = {
 			clearInterval(app.auth_timer)
 			app.auth_timer = null
 		}
-		window.removeEventListener("message", app.auth_state) 
+		window.removeEventListener('message', app.auth_state) 
 	},
-
-	auth_state: (e) => {
-		// receive window message
-		console.log(e)
-
-		switch (e.data.type) {
-		case 'auth-state':
-
-			window.removeEventListener("message", app.auth_state) 
-
-			if (e.data.done) {
-				// DONE
-				console.log('DONE', e.data.done)
-				//e.source.close() // close popup
-				var resolve = app.auth_resolve
-				app.auth_resolve = null
-				resolve(e.data.done)
-			} else {
-				// send origin info
-				e.source.postMessage({type:'auth-state'}, '*')
-				window.addEventListener("message", app.auth_state)
-			}
+	
+	auth_listen: e => {
+		app.auth_clear()
+		
+		switch(e?.data?.type) {
+		case 'auth-fail':
+			//console.log('AUTH FAILED')
+			app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_resolve())
 			break
-		/** 
-		case 'airtable_auth':
-			console.log(e)
-			e.source.close() // close popup
-			resolve(e.data.code)
+			
+		case 'auth-done':
+			app.auth_resolve(e?.data?.done)
 			break
-		**/
 		}
 	},
 	
-	auth: (auth_type) => new Promise((resolve) => {
+	auth: auth_type => new Promise((resolve) => {
+		
+		// SETUP
 		app.auth_clear()
 		app.auth_resolve = resolve
 		
-		window.addEventListener("message", e => {
-			console.log('AUTH_RESULT', e)
-			resolve(e?.data?.done)
-		})
-
+		window.addEventListener('message', app.auth_listen)
+		
+		// WINDOW
 		var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 		var popup = window.open( 
 			`${app.auth_url}/?redir=${auth_type}`,
@@ -215,16 +216,14 @@ export const app = window._app = {
 			`resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 		)
 		
-		// detect close
-		app.auth_timer = setInterval( (ms) => {				
+		// DETECT CLOSED
+		app.auth_timer = setInterval( time => {
 			if (popup.closed) {
 				app.auth_clear()
 				resolve()
 			}
 		}, 1000)
 		
-		popup.addEventListener('load', e => popup.postMessage({type:'AUTH_INIT', server:app.host, type:auth_type}, '*') )
-		
-
+		popup.addEventListener('load', e => popup.postMessage({type:'AUTH_INIT', server:app.host, type:auth_type}, '*'))
 	})
 }
