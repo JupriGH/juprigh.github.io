@@ -22,12 +22,147 @@ class CMainDB {
 			req.addEventListener('success', e => resolve(e.target.result))
 		}))
 }
+
+///////////////////////////////
+export const DeCompressBlob = async blob => {
+	const ds = new DecompressionStream("gzip")
+	const stream = blob.stream().pipeThrough(ds)
+	return await new Response(stream).blob().then(res => res.text())
+}
+
 ///////////////////////////////
 export const app = window._app = {
 	host	: '', //'https://1ehucfdghji5.runs.apify.net/api',
 	actors	: {},
 	db		: new CMainDB(),
+	
+	sse(query, url, progress) {
+		
+		return new Promise((resolve, reject) => {
+	
+			if (!url) url = `${this.host||window.location.origin}/sse`
+			
+			url = new URL(url)
+			url.searchParams.append('params', btoa(JSON.stringify(query)))
+			
+			console.log('<sse> <<', query)
+			
+			var raw = undefined
+			var src = new EventSource(url.href)
+			
+			// CONNECTED
+			src.on('open', 		e => console.warn('sss:open', e))
+			
+			// MESSAGE
+			src.on('message', 	e => console.warn('sse:message', e))
+			
+			// RESULT
+			src.on('end', e => {
+				console.warn('sse:end', e)
+				e.target.close()
+				resolve([JSON.parse(e.data), raw])
+			})
+			
+			// ERROR
+			src.on('error', 	e => {
+				console.warn('sse:error', e)
+				e.target.close()
+				reject('CLOSED')
+			})
+		})
+		.then(tmp => {
+			var [res, raw] = tmp
 
+			if (res.code === 0) {
+				console.log('<sse> >>', res)
+				return res
+			} else {
+				console.error('<sse> >>', res)
+				return Promise.reject(res)
+			}
+		})
+	},
+	
+	ws(query, url, progress) {
+		
+		return new Promise((resolve, reject) => {
+			if (!url) url =  `${this.host||window.location.origin}/ws`
+			url = url.replace('https://','wss://').replace('http://','ws://')
+			
+			console.log('<ws> <<', query)
+			
+			var sock = new WebSocket(url)
+			var raws = [] // chunks
+			
+			sock.on(['open','message','error','close'], e => {
+				
+				console.warn(`ws:${e.type}`, e)
+				
+				switch(e.type) {
+				case 'open':
+				
+					sock.send(JSON.stringify(query))
+					break
+				
+				case 'message':
+
+					var con = e?.data?.constructor
+					
+					if (con === String) {
+						
+						raws.length = 0
+						
+						var res = JSON.parse(e.data)
+						if (res.code === 0) {
+							
+							console.log('<ws> >>', res)
+							e.target.close(1000, 'manual close')
+							
+							if (raws.length) res.raw = new Blob([...raws])
+							resolve(res)
+						
+						} else if (res.code >= 500) {
+							
+							console.error('<ws> >>', res)
+							e.target.close(1000, 'manual close')
+							
+							if (!res.error) res.error = 'Unknwon API error'
+							reject(res)
+						
+						} else {
+							// statuses, progress, etc.
+						}
+
+					} else if (con === Blob) {
+						
+						console.warn('BLOB', e.data)
+						raws.push(e.data)
+						
+						//DeCompressBlob(_raw).then( r => console.log(r))
+						
+					} else {
+						
+						console.warn('TODO: ws-message', e)						
+					}
+					break
+				
+				case 'error':
+				
+					break
+				
+				case 'close':
+				
+					if (e.code === 1000) {
+					} else {
+						reject(`[websocket] error ${e.code} ${e.reason||"unknown error"}`)
+					}
+					break
+				}
+				
+			})
+		})
+	},
+	
 	api(query, url, progress) {
 		if (!url) url = `${this.host}/api`
 		console.log('<api> <<', query)
@@ -80,6 +215,8 @@ export const app = window._app = {
 		}
 		///
 		return prom
+		
+			/**
 			.then(res => {
 				console.log('HEADERS', ... res.headers)
 				
@@ -93,21 +230,18 @@ export const app = window._app = {
 					return res.json().then(res => [res]).catch(err => (console.error(err),[undefined]))
 				}
 			})
+			**/
+			//.catch(e => (console.log(prom),console.log(e),Promise.reject(e)))
+			.then(res => res.json())
 			.then(res => {
-				console.log( 'RES', res )
-				/**
-				var [res, raw] = res
-				
-				if (raw) console.log('RAW', raw)
-
 				if (res.code === 0) {
 					console.log('<api> >>', res)
 					return res
 				} else {
 					console.error('<api> >>', res)
+					if (!res.error) res.error = 'Unknwon API error'
 					return Promise.reject(res)
 				}
-				**/
 			})
 	},
 	

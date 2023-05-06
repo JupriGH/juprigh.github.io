@@ -1,5 +1,5 @@
 import '../core.js'
-import { app } from './app.js?'
+import { app, DeCompressBlob } from './app.js?'
 
 const 	LIST_ACTORS   = '__ACTORS__',
 		LIST_DATASETS = '__DATASETS__',
@@ -10,11 +10,7 @@ const	PER_PAGE = 100
 ////////////////////////////////////// UTILS
 const range = (min,max,step=1) => Array.from({length:Math.ceil((max-min)/step)}, (_,i) => min + (i * step))
 
-const DeCompressBlob = async blob => {
-	const ds = new DecompressionStream("gzip")
-	const stream = blob.stream().pipeThrough(ds)
-	return await new Response(stream).blob().then(res => res.text())
-}
+
 
 const DeCompressB64 = async data => {
 	var arr = Uint8Array.from(atob(data), c => c.charCodeAt(0))
@@ -78,7 +74,10 @@ class UI_Base extends HTMLDivElement {
 			var arg = undefined
 				 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
 			else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
-			else 				arg = {message:'unknown error', type:'error'}
+			else {
+				console.error('RUNERROR', e)
+				arg = {message:e.error||e, type:'error'}
+			}
 			return this.confirm(arg)
 		})
 		.finally(() => delete (element||this).dataset.running)
@@ -413,7 +412,8 @@ class UI_Storage extends UI_Base { // storage list
 		this.set_type(0)
 	}
 
-	set_type = type => { 		
+	set_type = type => {
+		
 		this._type = type
 		
 		if ((type === 0 && !this._data_ds) || (type !== 0 && !this._data_kv)) {
@@ -421,9 +421,9 @@ class UI_Storage extends UI_Base { // storage list
 				
 				app.api({command:'storage-list', type}).then( res => {
 					
-					console.log('UPDATE STORAGE LIST')
-					// actors
+					console.log('UPDATE CACHE STORAGE LIST')
 					
+					// actors
 					var actors = res?.data?.actors
 					if (actors) app.cache_set({id:LIST_ACTORS, data:{actors}})
 					
@@ -434,62 +434,73 @@ class UI_Storage extends UI_Base { // storage list
 					
 					return [actors, stores]
 				})
-				.catch(e => {
+				.catch(e => (
+					
 					// ERROR / OFFLINE
-					console.log('ERROR OFFLINE?')
-					var prom
-					if (type === 0) prom = app.cache_get(LIST_DATASETS).then(res => res?.data?.stores)
-					else 			prom = app.cache_get(LIST_KEYVALUE).then(res => res?.data?.stores)
-					
-					return Promise.all([app.cache_get(LIST_ACTORS).then(res => res?.data?.actors), prom])
-				})
-				.then(res => { // [actors, stores]
-					
+					console.log('ERROR OFFLINE', e),
+										
+					this.confirm({message:e.error||e, type:'error'}).then( _ => {
+
+						var prom
+						if (type === 0) prom = app.cache_get(LIST_DATASETS).then(res => res?.data?.stores)
+						else 			prom = app.cache_get(LIST_KEYVALUE).then(res => res?.data?.stores)
+						
+						return Promise.all([app.cache_get(LIST_ACTORS).then(res => res?.data?.actors), prom])
+					})
+						
+				))
+				.then(res => { 
+
 					var [actors, stores] = res
-					//console.log( stores )
-					
+
 					if (actors)  Object.assign(app.actors, actors)
 					if (stores) {
 						if (type === 0) this._data_ds = stores
 						else 			this._data_kv = stores
 					}
 					
-					this.refresh_view() 
+					this.refresh_list() 
 				})
 			)
 		} else {
-			this.refresh_view()
+			this.refresh_list()
 		}
 		return this
 	}
-	refresh_view() {
+	
+	refresh_list() {
+		
 		var data = ((this._type||0) === 0) ? this._data_ds : this._data_kv
 		var no = 0
-		this._list.clear()._( ... data.map(e => {
-			var actor = app.actors[e.actId]
+		this._list.clear()
+		if (data)
+			this._list._( ... data.map(e => {
+				var actor = app.actors[e.actId]
 
-			return _('tr').data({id:e.id, type:this._type})._(
-					_('th')._(++no),
-					_('td')._(
-						actor ? [ 
-							(actor.pictureUrl) 	? _('img').css('actor-icon').attr({src: actor.pictureUrl}) : null, 
-							(actor.title) 		? _('span')._(actor.title) : null
-						] : null
-					),
-					_('td')._(`📁 ${e.id}`),
-					_('td')._(e.name),
-					app.get_column(e.itemCount),
-					app.get_column(new Date(e.createdAt * 1000)),
-					app.get_column(new Date(e.modifiedAt * 1000)),
-					app.get_column(e.stats?.s3StorageBytes),
-					app.get_column(e.stats?.inflatedBytes),
-			)
-		}))
+				return _('tr').data({id:e.id, type:this._type})._(
+						_('th')._(++no),
+						_('td')._(
+							actor ? [ 
+								(actor.pictureUrl) 	? _('img').css('actor-icon').attr({src: actor.pictureUrl}) : null, 
+								(actor.title) 		? _('span')._(actor.title) : null
+							] : null
+						),
+						_('td')._(`📁 ${e.id}`),
+						_('td')._(e.name),
+						app.get_column(e.itemCount),
+						app.get_column(new Date(e.createdAt * 1000)),
+						app.get_column(new Date(e.modifiedAt * 1000)),
+						app.get_column(e.stats?.s3StorageBytes),
+						app.get_column(e.stats?.inflatedBytes),
+				)
+			}))
+
 		return this
 	}
 	on_data_ds_click = e => this.set_type(0)
 	on_data_kv_click = e => this.set_type(1)
-	on_refresh_click  = e => this.refresh_view()
+	on_refresh_click  = e => this.refresh_list()
+	
 	/** 
 	on_dataset_open 	= e => {
 		// this._( _('div', {is:'ui-dataset'})._load(e.detail.id) )
@@ -546,11 +557,13 @@ class UI_Dataset extends UI_Base {
 	}
 
 	_load = (name, type) => {
-
+		
+		var success = false
+		
 		this.run(
 		
 			Promise.all([
-				app.api({command:'storage-list', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
+				app.api({command:'storage-info', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
 				app.cache_get(`meta:${name}`).then(res => res?.data)
 			])
 			.then(res => {
@@ -582,7 +595,7 @@ class UI_Dataset extends UI_Base {
 				res || 
 				(
 					console.log('GET FRESH DATA!'),
-					app.api({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
+					app.ws({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
 						.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
 					//.catch(e => console.log('GET DATA: ERROR'))
 				)
@@ -659,8 +672,11 @@ class UI_Dataset extends UI_Base {
 
 					this._data = data
 					this.page_view(0)
-				}
+					
+					success = true
+				} 
 			})
+			.finally(() => success || this.remove())
 		)
 		return this
 	}
@@ -1019,42 +1035,43 @@ class UI_Main extends UI_Base {
 		super()
 		
 		this.css('ui-main','flex-row')
-		
+		this._(
+			// MAIN CONTENT
+			_('div').css('ui-main-content', 'flex-col')._(
+				this._content = _('div') 
+			), 
+			// MAIN MENU
+			_('div').css('ui-main-menu', 'flex-col')._(
+				this.button('actor','ACTOR'),
+				this.button('storage','STORAGE'),
+				this.button('airtable','AIRTABLE'),
+				this.button('google','GOOGLE'),
+			)
+		)
+				
 		this.run(
 			
-			Promise.allSettled([
-				
-				app.cache_init(),
-				app.api({command:'config'})
+			app.cache_init()
+			.then(e => app.api({command:'config'}))
 			
-			]).then( res => {
-
+			/**
+			.then(res => {
+				
+				console.log(res)
+				return res
+				
 				var [node, config] = res 
-				
-				this._(
-					// MAIN CONTENT
-					_('div').css('ui-main-content', 'flex-col')._(
-						this._content = _('div') 
-					), 
-					// MAIN MENU
-					_('div').css('ui-main-menu', 'flex-col')._(
-						this.button('actor','ACTOR'),
-						this.button('storage','STORAGE'),
-						this.button('airtable','AIRTABLE'),
-						this.button('google','GOOGLE'),
-					)
-				)
-			
+
 				// config
-				if (config?.value) {
-					/*
+				if (0) { //(config?.value) {
+					 
 					var actors = res?.data?.actors
-					if (actors) {
-						app.actors = Object.fromEntries(actors.map(e => [e.id, e]))
+					if (actors)  app.actors = Object.fromEntries(actors.map(e => [e.id, e]))
 					}
-					*/
+					 
 				}
 			})
+			**/
 		)
 	}
 
