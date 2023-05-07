@@ -1,12 +1,13 @@
 import { app } from '../app.js'
 
-if (window.opener) {
+window.on('load', e => {
+
+	var query = app.get_param()
+	//alert(JSON.stringify(query))
 	
-	// popup page
-	window.on('load', e => {
-		var query = app.get_param()
-		//alert(JSON.stringify(query))
+	if (window.opener) {
 		
+		// popup page
 		if (query.redir) {
 			// START FLOW
 			var url = `${query.param?.server||''}/api`
@@ -25,10 +26,10 @@ if (window.opener) {
 			window.opener.postMessage({type:'auth-done', done: query}, '*')
 			window.close()
 		}
-	}, {once: true})
-
-} else {
 	
-	// normal page
-	alert(document.referrer)
-}
+	} else {
+
+		// normal page: reopen as popup
+		window.open(window.location.href, 'auth', 'popup')	
+	}
+}, {once: true})
