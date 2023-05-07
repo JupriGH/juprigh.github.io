@@ -1,31 +1,34 @@
-import '../core.js'
-import { app, DeCompressBlob } from './app.js?'
+
+import { app, fetch_gzip, gunzip } from './app.js?'
 
 const 	LIST_ACTORS   = '__ACTORS__',
 		LIST_DATASETS = '__DATASETS__',
 		LIST_KEYVALUE = '__KEYVALUE__'
+
+const 	ICON_APIFY = 'https://apify.com/favicon.ico',
+		ICON_BLANK = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>'
 
 const	PER_PAGE = 100
 
 ////////////////////////////////////// UTILS
 const range = (min,max,step=1) => Array.from({length:Math.ceil((max-min)/step)}, (_,i) => min + (i * step))
 
-
-
+/*
 const DeCompressB64 = async data => {
 	var arr = Uint8Array.from(atob(data), c => c.charCodeAt(0))
 	var blob = new Blob([arr.buffer])
-	return DeCompressBlob(blob)
+	return gunzip(blob)
 }
+*/
 
-
+/**
 const CompressText = async source => {
 	const cs = new CompressionStream("gzip")
 	const blob = new Blob([source])
 	const stream = blob.stream().pipeThrough(cs)
 	return await new Response(stream)
 }
-/**
+
 const TDecompress = async source => {
 	const ds = new DecompressionStream("gzip")
 	const blob = new Blob([source])
@@ -69,18 +72,18 @@ class UI_Base extends HTMLDivElement {
 	run(promise, element) {
 		(element||this).dataset.running = 1
 		
-		promise
-		.catch(e => {
-			var arg = undefined
-				 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
-			else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
-			else {
-				console.error('RUNERROR', e)
-				arg = {message:e.error||e, type:'error'}
-			}
-			return this.confirm(arg)
-		})
-		.finally(() => delete (element||this).dataset.running)
+		return promise
+			.catch(e => {
+				var arg = undefined
+					 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
+				else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
+				else {
+					console.error('RUN', e)
+					arg = {message:e.error||e, type:'error'}
+				}
+				return this.confirm(arg)
+			})
+			.finally(() => delete (element||this).dataset.running)
 	}
 	
 	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
@@ -98,6 +101,8 @@ class UI_Base extends HTMLDivElement {
 		if (this[command]) this[command](e, ... args)
 		else console.warn('event:', command, ... args)
 	}
+	
+	animate_close = () => this.css({'animation':'animate-zoom-out 0.5s'}).on('animationend', e => this.remove()) 
 }
 
 ////////////////////////////////////// BUTTON LIST
@@ -148,19 +153,8 @@ class UI_Confirm extends UI_Base {
 	}
 	on_button_click(e) {
 		if (this._callback) this._callback( parseInt(e.currentTarget.dataset.index) )
-		this.remove()
+		this.animate_close()
 	}
-	
-	/**
-	on_confirm_click(e) {
-		if (this.confirm_callback) this.confirm_callback(1)
-		this.remove()
-	}
-	on_cancel_click(e) {
-		if (this.confirm_callback) this.confirm_callback(0)
-		this.remove()
-	}
-	**/
 }
 
 ////////////////////////////////////////////////////////// EDITOR
@@ -392,6 +386,7 @@ class UI_Storage extends UI_Base { // storage list
 	constructor() {
 		super()
 		this.css('ui-storage','flex-col')._(
+			_('div').css('ui-big-title')._('Storage List'),
 			_('div')._(
 				this.button('refresh','REFRESH'),
 				this.button('data-ds','DATASET'),
@@ -399,7 +394,12 @@ class UI_Storage extends UI_Base { // storage list
 			),
 			_('table').css('ui-table')._(
 				_('thead').css('sticky-t')._(
-					_('tr')._(['#', 'Actor', 'Dataset-ID', 'Name', 'Items', 'Created','Modified','Size','Inflate'].map(e => _('th')._(e)))),
+					_('tr')._(
+						_('th').css('sticky-l')._('#'),
+						... ['Actor', 'Dataset-ID', 'Name', 'Items', 'Created','Modified','Size','Inflate'].map(e => _('th')._(e)),
+						_('th').css('sticky-r')._('Cached'),
+					)
+				),
 				this._list = _('tbody').data({command:'cell'}).on('click', this)
 			)
 		)
@@ -416,7 +416,9 @@ class UI_Storage extends UI_Base { // storage list
 		
 		this._type = type
 		
-		if ((type === 0 && !this._data_ds) || (type !== 0 && !this._data_kv)) {
+		if ( ((type === 0) && !this._data_ds) || 
+			 ((type !== 0) && !this._data_kv)
+		) {
 			this.run(
 				
 				app.api({command:'storage-list', type}).then( res => {
@@ -425,29 +427,20 @@ class UI_Storage extends UI_Base { // storage list
 					
 					// actors
 					var actors = res?.data?.actors
-					if (actors) app.cache_set({id:LIST_ACTORS, data:{actors}})
+					if (actors) app.cache({command:'set-meta', id:LIST_ACTORS, data:actors})
 					
 					// stores
 					var stores = res?.data?.stores
-					if (type === 0) app.cache_set({id:LIST_DATASETS, data:{stores}})
-					else  			app.cache_set({id:LIST_KEYVALUE, data:{stores}})
+					if (stores) app.cache({command:'set-meta', id:(type === 0)? LIST_DATASETS:LIST_KEYVALUE, data:stores})
 					
 					return [actors, stores]
 				})
 				.catch(e => (
-					
-					// ERROR / OFFLINE
-					console.log('ERROR OFFLINE', e),
-										
-					this.confirm({message:e.error||e, type:'error'}).then( _ => {
-
-						var prom
-						if (type === 0) prom = app.cache_get(LIST_DATASETS).then(res => res?.data?.stores)
-						else 			prom = app.cache_get(LIST_KEYVALUE).then(res => res?.data?.stores)
-						
-						return Promise.all([app.cache_get(LIST_ACTORS).then(res => res?.data?.actors), prom])
-					})
-						
+					console.log('ERROR OFFLINE', e),				
+					this.confirm({message:e.error||e, type:'error'}).then( _ =>  Promise.all([
+						app.cache({command:'get-meta', id:LIST_ACTORS}), 
+						app.cache({command:'get-meta', id:(type === 0) ? LIST_DATASETS:LIST_KEYVALUE})
+					]))						
 				))
 				.then(res => { 
 
@@ -478,11 +471,11 @@ class UI_Storage extends UI_Base { // storage list
 				var actor = app.actors[e.actId]
 
 				return _('tr').data({id:e.id, type:this._type})._(
-						_('th')._(++no),
+						_('th')._(++no).css('row-index','sticky-l'),
 						_('td')._(
 							actor ? [ 
-								(actor.pictureUrl) 	? _('img').css('actor-icon').attr({src: actor.pictureUrl}) : null, 
-								(actor.title) 		? _('span')._(actor.title) : null
+								_('img').css('actor-icon').attr({src: actor.pictureUrl ?? ICON_BLANK}), 
+								(actor.title) ? _('span')._(actor.title) : null
 							] : null
 						),
 						_('td')._(`📁 ${e.id}`),
@@ -492,6 +485,7 @@ class UI_Storage extends UI_Base { // storage list
 						app.get_column(new Date(e.modifiedAt * 1000)),
 						app.get_column(e.stats?.s3StorageBytes),
 						app.get_column(e.stats?.inflatedBytes),
+						_('td').css('sticky-r')
 				)
 			}))
 
@@ -543,64 +537,107 @@ class UI_Dataset extends UI_Base {
 				
 				// control
 				_('div').css('button-list')._(
+					this.button('excel', 	'EXCEL').on('click', this),					
+					this.button('google', 	'GOOGLE').on('click', this),
 					this.button('close', 	'CLOSE').on('click', this),
-					this.button('google', 	'GOOGLE').on('click', this)				
 				)
 			)
 		)
 
 		// data
+		
 		this._head_list = []		
 		this._data = []
-		this._schema = null
+		this._meta 	= null
 		this._fields = null
 	}
+	
+	on_excel_click = e => {
+		/*
+		const handle = await showSaveFilePicker({
+			suggestedName: 'name.txt',
+			types: [{
+				description: 'Text file',
+				accept: {'text/plain': ['.txt']},
+			}],
+		});
 
-	_load = (name, type) => {
+		const blob = new Blob(['Some text']);
+
+		const writableStream = await handle.createWritable();
+		await writableStream.write(blob);
+		await writableStream.close();
+		*/
 		
+		console.log(this._meta)
+		
+		this.run(
+			app.ws({command:'storage-data', format:'xlsx', type:0, 'name': this._meta.id}).then(res => console.log(res))
+
+		).finally(() => 
+			this.confirm({message:'Download', buttons:['Download','Cancel']}).then( btn => {
+				console.log(btn) 
+				if (btn === 0) {
+					var b = new Blob(['testing'])
+					var u = URL.createObjectURL(b)
+					var a = _('a')
+					a.download = 'file.txt'
+					a.href = u
+					this._(a)
+					{ 	
+						console.log(a)
+						//a.fire('click') 
+						a.click()
+					}
+				}
+			})
+		)
+	}
+	
+	_load = (name, type) => {
+
 		var success = false
 		
 		this.run(
 		
 			Promise.all([
-				app.api({command:'storage-info', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
-				app.cache_get(`meta:${name}`).then(res => res?.data)
+			
+				fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}`, progress:console.log})
+						.then(res => res.json())
+						.then(res => res.data)
+						.catch(e => console.error(e)),
+						
+				//app.api({command:'storage-info', name}).then(res => res?.data).catch(e => console.log('GET META: ERROR')),
+				
+				app.cache({command:'get-meta', id:name})
 			])
 			.then(res => {
-
 				console.log('RES #1', res)
-				
-				var task = []
-				var [fresh, cache] = res
 
-				this._meta = fresh || cache
-
-				if (!fresh || (cache && (cache.modifiedAt === fresh.modifiedAt))) {
-								
-					// CACHE
-					return app.cache_get(`data:${name}`)
-				
-				} else {
-
-					// STALE
-					if (fresh) {
-						
-						// SAVE META
-						app.cache_set({id:`meta:${name}`, data:fresh})
-						
-					}
+				var [fresh, cache] = res				
+				this._meta = fresh || cache || undefined
+				if (!this._meta) {
+					app.cache({command:'del-data', id:name})
+					throw 'METADATA_NOTFOUND'
 				}
+				
+				if (!fresh || (cache && (cache.modifiedAt === fresh.modifiedAt)))
+					return app.cache({command:'get-data', id:name}) // get cache data
+				else if (fresh) 
+					app.cache({command:'set-meta', id:name, data:fresh}) // save fresh meta	
 			})
 			.then(res => 
-				res || 
-				(
-					console.log('GET FRESH DATA!'),
-					app.ws({command:'storage-data', name, type:parseInt(type||0)}, null, app.progress_iu.update)
-						.then(res => res?.raw && app.cache_set({id:`data:${name}`, data:res.raw}).then(e => res.raw))
-					//.catch(e => console.log('GET DATA: ERROR'))
+				res || (
+					console.log('GET_FRESH_DATA'),
+					fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}/items`, compress:'gzip', progress: app.progress_iu.update})
+						.then(res => res.blob())
+						.then(res => app.cache({command:'set-data', id:name, data:res}).then(e => res))
+					
+					//app.ws({command:'storage-data', name, type:parseInt(type||0), format:'json'}, null, app.progress_iu.update)
+					//	.then(res => res?.raw && app.cache({command:'set-data', id:name, data:res.raw}).then(e => res.raw))
 				)
 			)
-			.then(raw => raw && DeCompressB64(raw).then(raw => JSON.parse(raw)))
+			.then(raw => raw && gunzip(raw).then(raw => JSON.parse(raw)))
 			.then(data => {
 
 				// RESET
@@ -622,7 +659,7 @@ class UI_Dataset extends UI_Base {
 
 					this._info._(
 						_('span')._(
-							(actor?.pictureUrl) && _('img').css('actor-icon').attr({src: actor.pictureUrl}),
+							_('img').css('actor-icon').attr({src: actor?.pictureUrl?? ICON_APIFY}),
 							actor?.title || '<unknown-actor>'
 						),
 						
@@ -701,7 +738,7 @@ class UI_Dataset extends UI_Base {
 		this._table.scroll({top:0, left:0}) //, behavior:'smooth'})
 	}
 	
-	on_close_click = e => app.animate_close(this)
+	on_close_click = e => this.animate_close() 
 	on_page_change = e => this.page_view(parseInt(e.detail))
 	on_view_change = e => {
 
@@ -951,8 +988,8 @@ class UI_FieldSelector extends UI_Base {
 		return this
 	}		
 
-	on_done_click 	= e => app.animate_close(this) && this._resolve('OK')
-	on_cancel_click = e => app.animate_close(this)
+	on_done_click 	= e => this.animate_close() && this._resolve('OK')
+	on_cancel_click = e => this.animate_close()
 	on_reset_click 	= e => {
 		this._list.clear()
 		for (var e of this._select.querySelectorAll(`span[data-selected]`))
@@ -994,37 +1031,42 @@ class UI_Progress extends UI_Base {
 		this.update = this.update.bind(this)
 	}
 	
-	update(data) {
+	update(data) { // {caption, count, total}
+
 		if (data) {
-			// SHOW
-			if (!this.parentNode) {
+			// INIT
+			if (!this.parentNode) {				
+
 				this._caption = ''
 				this._head.clear()
 				this._line.css({width:'0'})
-				window.document.body._(this)
+				{ (data.root||app.main_ui||window.document.body)._(this) }
 			}
-				// UPDATE
-			var {loaded, total, caption} = data
+			
+			// UPDATE
+			var {count, total, caption} = data
 			var per = 0
 
 			if (caption) this._caption = caption
 
-			if (loaded && total) {
-				//console.log('PROGRESS', data)
-				if (total) {
-					per = 100 * loaded / total
-					per = `${per.toFixed(2)}%`
-				}
+			count = count||0
+			if (total) {
+				per = 100 * count / total
+				per = `${per.toFixed(2)}%`
+				this._line.css({width:per})
+			} else {
+				per = count
+				this._line.css({width:'0'})
 			}
 
-			this._head.clear()._(this._caption, per ? per: null)
-			this._line.css({width:per})
-			return
+			this._head.clear()._(this._caption,' ',per ? per: null)
+			
+		
+		} else {
+			// RESET
+			this._caption = ''
+			this.remove()
 		}
-
-		// RESET
-		this._caption = ''
-		this.remove()
 	}
 }
 
@@ -1101,14 +1143,8 @@ window.on('load', e => {
 	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )
 
 
-	var query = new URLSearchParams(window.location.search)
-	var param = query.get('param')
-	if (param) {
-		param = JSON.parse(atob(param))
-		console.log('PARAM', param)
-		app.host = param.server
-	}
-
+	app.get_param()
+	
 	app.progress_iu = _('div', {is:'ui-progress'})	
 	app.main_ui 	= _('div', {is:'ui-main'})
 	

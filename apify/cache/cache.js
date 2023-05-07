@@ -1,32 +1,6 @@
-import '../../core.js'
-import { app } from '../app.js'
+import { DBClient } from '../app.js'
 
+const DB = new DBClient()
 
-window.on('load', e => {
-	
-	console.log(`CACHE: ${window.location.href}`)
-	
-	window.on('message', e => {
-		// INIT
-		var port2 = e.ports[0]
-		port2.onmessage = async (e) => {
-			//console.log('CHANNEL: FROM MAIN', e)
-			switch(e.data.type) {
+DB.listen()
 
-			case 'get':
-			
-				var rec = await app.db.get_data(e.data.id)
-				port2.postMessage(rec)
-				break
-				
-			case 'set':
-				
-				var {id, data} = e.data.data
-				if (id && data) await app.db.set_data(id, data)
-				port2.postMessage('OK') // some confirmation	
-				break
-			}
-		}
-	})
-	
-})

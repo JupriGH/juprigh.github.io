@@ -1,41 +1,155 @@
+import '../core.js'
+
 /////////////////////////////
-class CMainDB {
-	name 	= 'apify_dm' 
-	version = 1
-	upgrade = db => db.createObjectStore('datasets', {keyPath: "id"})
+export class DBClient {
+	name 		= 'apify_dm' 
+	version 	= 1
+	store_list 	= ['metainfo', 'datasets']
+	upgrade 	= db => this.store_list.map(s => db.objectStoreNames.contains(s) || db.createObjectStore(s))
 	
-	open = () => 
-		new Promise((resolve,reject) => {
-			const req = indexedDB.open(this.name, this.version)
-			if (this.upgrade) req.addEventListener('upgradeneeded', e => this.upgrade(e.target.result))
-			req.addEventListener('error', reject)
-			req.addEventListener('success', e => resolve(e.target.result)) // DB
+	open = () =>  new Promise((resolve, reject) => indexedDB.open(this.name, this.version)
+		.on('upgradeneeded', e => this.upgrade(e.target.result))
+		.on('success', e => resolve(e.target.result)) // DB
+		.on('error', reject)
+	)
+	
+	get_store = (...name) => this.open().then(db => db.transaction([...name], 'readwrite').objectStore(name[0]))
+	
+	get_item = (sname, id) => 
+		this.get_store(sname).then(store => 
+			new Promise((resolve) => store.get(id).on('success', e => resolve(e.target.result)))
+		)
+	
+	get_meta = (id) 		=> this.get_item('metainfo', id)
+	get_data = (id) 		=> this.get_item('datasets', id)
+	set_meta = (id, data) 	=> this.get_store('metainfo').then(store => store.put(data, id))
+	set_data = (id, data) 	=> this.get_store('datasets').then(store => store.put(data, id))
+	
+	// INSIDE IFRAME
+	listen() {
+		window.on('load', e => {
+
+			console.warn('[CACHE] location:', window.location.href)
+			
+			window.on('message', e => {
+
+				if (e.data == 'INIT') { // START SESSION
+				
+					console.warn('[CACHE] <session>')
+
+					e.ports[0].onmessage = async (e) => {
+						
+						var t = e.target, r = e.data // request
+						
+						console.warn('[CACHE] message:', r.command)
+						
+						switch(r.command) {
+						
+						case 'get-meta':
+							t.postMessage(await this.get_meta(r.id))
+							break
+							
+						case 'get-data':
+							t.postMessage(await this.get_data(r.id))
+							break
+						
+						case 'set-meta':
+							var {id, data} = r
+							if (id && data) await this.set_meta(id, data)
+							t.postMessage('OK') // some confirmation	
+							break
+						
+						case 'set-data':
+							var {id, data} = r
+							if (id && data) await this.set_data(id, data)
+							t.postMessage('OK') // some confirmation	
+							break
+						
+						default:
+							console.error('[CACHE] UNKNOWN_COMMAND', r.command)
+							break
+						}
+					}
+				}
+			})
+			
 		})
-	
-	store = (...name) => this.open().then(db => db.transaction([...name], "readwrite").objectStore(name[0]))
-	
-	set_data = (id, data) => this.store('datasets').then(store => store.put({id, data}))
-	
-	get_data = (id) => 
-		this.store('datasets').then(store => new Promise((resolve) => {
-			var req = store.get(id)
-			req.addEventListener('success', e => resolve(e.target.result))
-		}))
+	}
 }
 
 ///////////////////////////////
-export const DeCompressBlob = async blob => {
+export const gunzip = async blob => { // DeCompressBlob
+	//console.log('DeCompressBlob', blob)
 	const ds = new DecompressionStream("gzip")
 	const stream = blob.stream().pipeThrough(ds)
 	return await new Response(stream).blob().then(res => res.text())
 }
 
+// TODO: how to disable fetch auto-decompress (get raw bytes)
+// workaround: get uncompressed, then compress again!
+
+const stream_progress = (stream, progress) => 
+	progress 
+	? new ReadableStream({	
+		async start(controller) {
+
+			var reader = stream.getReader(), count = 0
+
+			while (1) {
+				progress({count})
+
+				var {done, value} = await reader.read()
+				if (done) break
+
+				// progress			
+				count += value.byteLength			
+				controller.enqueue(value)
+			}
+			
+			progress()
+			controller.close()
+		}
+	}) 
+	: (console.warn('[stream_progress] PROGRESS_CALLBACK_UNDEFINED'), stream)
+
+export const fetch_gzip = async ({url, compress, progress}) => { 
+	/** 
+		compress: 'gzip'
+		progress: function callback({count, total})
+	*/
+	var response = await fetch(url)
+	if (response.status !== 200) throw `HTTP Error ${response.status}`
+	
+	if (compress || progress) {
+		var stream = response.body
+		if (progress) stream = stream_progress(stream, progress)
+		if (compress) stream = stream.pipeThrough(new CompressionStream(compress))
+		response = new Response(stream)
+	}
+	return response
+}
+
 ///////////////////////////////
 export const app = window._app = {
 	host	: '', //'https://1ehucfdghji5.runs.apify.net/api',
+	param	: undefined,
 	actors	: {},
-	db		: new CMainDB(),
-	
+
+	//gunzip,
+	//fetch_gzip,
+
+	get_param : () => {
+		var query = Object.fromEntries(new URLSearchParams(window.location.search).entries())
+		var {param} = query
+		if (param) {
+			app.param = param
+			param = query.param = JSON.parse(atob(param))
+			console.log('PARAM', param)
+			app.host = param.server
+		}
+		return query
+	},
+		
 	sse(query, url, progress) {
 		
 		return new Promise((resolve, reject) => {
@@ -96,11 +210,10 @@ export const app = window._app = {
 			
 			sock.on(['open','message','error','close'], e => {
 				
-				console.warn(`ws:${e.type}`, e)
-				
+
 				switch(e.type) {
 				case 'open':
-				
+					console.warn(`ws:${e.type}`, e)
 					sock.send(JSON.stringify(query))
 					break
 				
@@ -110,36 +223,42 @@ export const app = window._app = {
 					
 					if (con === String) {
 						
-						raws.length = 0
-						
 						var res = JSON.parse(e.data)
-						if (res.code === 0) {
-							
-							console.log('<ws> >>', res)
+						switch (res.code) {
+						case 0: // END
 							e.target.close(1000, 'manual close')
-							
+							if (progress) progress()
 							if (raws.length) res.raw = new Blob([...raws])
+							console.log('<ws> >>', res)
 							resolve(res)
+							break
 						
-						} else if (res.code >= 500) {
+						case 101: // PROGRESS	
+							console.log('PROGRESS', res)
+							if (progress) {
+								var {caption, count, total} = res
+								progress({caption, count, total})
+							}
+							break
 							
-							console.error('<ws> >>', res)
-							e.target.close(1000, 'manual close')
-							
-							if (!res.error) res.error = 'Unknwon API error'
-							reject(res)
-						
-						} else {
-							// statuses, progress, etc.
+						default:
+							if (res.code >= 500) { // ERRORS							
+								e.target.close(1000, 'manual close')
+								if (progress) progress()
+								if (!res.error) res.error = 'Unknwon API error'
+								console.error('<ws> >>', res)
+								reject(res)
+							}
+							else
+								console.warn('UNKNOWN MESSAGE', e.data)
+								// statuses, progress, etc.
 						}
 
 					} else if (con === Blob) {
 						
-						console.warn('BLOB', e.data)
+						console.warn('BLOB', e.data.size)
 						raws.push(e.data)
-						
-						//DeCompressBlob(_raw).then( r => console.log(r))
-						
+
 					} else {
 						
 						console.warn('TODO: ws-message', e)						
@@ -147,16 +266,22 @@ export const app = window._app = {
 					break
 				
 				case 'error':
-				
+					console.warn(`ws:${e.type}`, e)
 					break
 				
 				case 'close':
-				
+					
+					console.warn(`ws:${e.type}`, e)
+					if (progress) progress()
+
 					if (e.code === 1000) {
 					} else {
 						reject(`[websocket] error ${e.code} ${e.reason||"unknown error"}`)
 					}
 					break
+				
+				default:
+					console.error(`UNKNOWN ws:${e.type}`, e)
 				}
 				
 			})
@@ -182,12 +307,12 @@ export const app = window._app = {
 						new ReadableStream({
 							async start(controller) {
 								var reader = res.body.getReader()
-								var loaded = 0
+								var count = 0
 								var total = res.headers.get('content-length')
 								console.log('TOTAL', total)
 								total = parseInt(total, 10)
 								
-								progress({caption:'downloading ... ', loaded:0, total:0})
+								progress({caption:'downloading ... ', count:0, total:0})
 								
 								for (;;) {
 									var {done, value} = await reader.read()
@@ -195,9 +320,9 @@ export const app = window._app = {
 									
 									if (done) break
 
-									loaded += value.byteLength
+									count += value.byteLength
 									try {
-										progress({loaded, total})
+										progress({count, total})
 									} catch (e) {
 										console.error(e)
 									}
@@ -215,23 +340,6 @@ export const app = window._app = {
 		}
 		///
 		return prom
-		
-			/**
-			.then(res => {
-				console.log('HEADERS', ... res.headers)
-				
-				var r = res.headers.get('x-api-response')
-				if (r) {
-					// header + content
-					console.log('#1')
-					return res.arrayBuffer().then(res => [JSON.parse(r), res])
-				} else {
-					console.log('#2')
-					return res.json().then(res => [res]).catch(err => (console.error(err),[undefined]))
-				}
-			})
-			**/
-			//.catch(e => (console.log(prom),console.log(e),Promise.reject(e)))
 			.then(res => res.json())
 			.then(res => {
 				if (res.code === 0) {
@@ -268,7 +376,7 @@ export const app = window._app = {
 		return _('td')._(value.toString())
 	},
 	
-	animate_close : node => node.on('animationend', e => node.remove()) && node.css({'animation':'animate-zoom-out 0.5s'}),
+	
 	
 	////////////////////////////////////////////////// CACHE
 	// https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
@@ -280,31 +388,14 @@ export const app = window._app = {
 			_('iframe').css({display:'none'}).attr({src:'cache/'}).on('load', e => resolve(app.cache_node = e.target)) 
 		)
 	}),
-	
-	cache_get: (id) =>  new Promise((resolve) => {
-		console.log('CACHE_GET', id)
 
-		var channel = new MessageChannel()
-		channel.port1.onmessage = e => resolve(e.data)
-		
-		// transfer port
-		app.cache_node.contentWindow.postMessage('INIT', '*', [channel.port2])
-		// get
-		channel.port1.postMessage({type:'get',id})
+	cache: (query) => new Promise((resolve, reject) => { // {command, key, data}
+		var {port1, port2} = new MessageChannel()
+		app.cache_node.contentWindow.postMessage('INIT', '*', [port2])
+		port1.onmessage = e => resolve(e.data)
+		port1.postMessage(query)
 	}),
-	
-	cache_set: (data) => new Promise((resolve) => {
-		console.log('CACHE_SET', data.id)
-	
-		var channel = new MessageChannel()
-		channel.port1.onmessage = e => resolve()
-		
-		// transfer port
-		app.cache_node.contentWindow.postMessage('INIT', '*', [channel.port2])
-		// get
-		channel.port1.postMessage({type:'set', data})
-	}),
-	
+
 	////////////////////////////////////////////////// OAUTH
 	auth_url		: './auth',	// bouncer url
 	auth_resolve	: null, 	// callback
@@ -340,14 +431,15 @@ export const app = window._app = {
 		app.auth_clear()
 		app.auth_resolve = resolve
 		
-		window.addEventListener('message', app.auth_listen)
+		window.on('message', app.auth_listen, {once:true})
 		
 		// WINDOW
-		var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
+		//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 		var popup = window.open( 
-			`${app.auth_url}/?redir=${auth_type}`,
+			`${app.auth_url}/?redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
 			`authwindow`,
-			`resizable=yes,width=${w},height=${h},top=${t},left=${l}`
+			'popup,location=no'
+			//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 		)
 		
 		// DETECT CLOSED
@@ -356,8 +448,6 @@ export const app = window._app = {
 				app.auth_clear()
 				resolve()
 			}
-		}, 1000)
-		
-		popup.addEventListener('load', e => popup.postMessage({type:'AUTH_INIT', server:app.host, type:auth_type}, '*'))
+		}, 500)
 	})
 }
