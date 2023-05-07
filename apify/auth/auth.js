@@ -10,10 +10,10 @@ window.on('load', e => {
 		// popup page
 		if (query.redir) {
 			// START FLOW
-			var url = `${query.param?.server||''}/api`
-			//alert(url)
+			var server = `${query.param?.server||''}/api`
+			alert(server)
 				
-			app.api({command:'auth-url', type: query.redir}, url)
+			app.api({command:'auth-url', type: query.redir}, server)
 				.then(res => {
 					window.location.href = res.data
 				})
@@ -30,6 +30,6 @@ window.on('load', e => {
 	} else {
 
 		// normal page: reopen as popup
-		window.open(window.location.href, 'auth', 'popup')	
+		window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')	
 	}
 }, {once: true})
