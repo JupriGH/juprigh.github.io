@@ -462,11 +462,11 @@ window.on('load', e => {
 		break
 	case 'auth':
 		
-		//if (window.opener) {
+		if (window.opener) {
 			if (query.redir) {
 				// START FLOW
 				var server = `${query.param?.server||''}/api`
-				alert(server)
+				//alert(server)
 					
 				app.api({command:'auth-url', type: query.redir}, server)
 					.then(res =>  window.location.href = res.data)
@@ -479,10 +479,10 @@ window.on('load', e => {
 				
 				app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
 			}
-		//} else {
-			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')	
-			
-		//}
+		} else {
+			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')
+			window.open(window.location.href, 'auth', 'popup')
+		}
 		break
 		
 	case 'cache':
