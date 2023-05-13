@@ -1,5 +1,4 @@
-
-import { app, fetch_gzip, gunzip } from './app.js?'
+import { app, fetch_gzip, gunzip } from './app.js'
 
 const 	LIST_ACTORS   = '__ACTORS__',
 		LIST_DATASETS = '__DATASETS__',
@@ -88,7 +87,7 @@ class UI_Base extends HTMLDivElement {
 	
 	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
 		var modal = _('div', {is:'ui-confirm'})._open({message, type, content, buttons, callback:resolve})
-		var res = (element||app.main_ui)._(modal)
+		var res = (element||main_ui)._(modal)
 		/// modal.showModal()
 		return modal
 	})
@@ -413,7 +412,7 @@ class UI_Storage extends UI_Base { // storage list
 	}
 
 	set_type = type => {
-		
+
 		this._type = type
 		
 		if ( ((type === 0) && !this._data_ds) || 
@@ -602,7 +601,7 @@ class UI_Dataset extends UI_Base {
 		
 			Promise.all([
 			
-				fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}`, progress:console.log})
+				fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}`})
 						.then(res => res.json())
 						.then(res => res.data)
 						.catch(e => console.error(e)),
@@ -629,7 +628,7 @@ class UI_Dataset extends UI_Base {
 			.then(res => 
 				res || (
 					console.log('GET_FRESH_DATA'),
-					fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}/items`, compress:'gzip', progress: app.progress_iu.update})
+					fetch_gzip({url:`https://api.apify.com/v2/datasets/${name}/items`, compress:'gzip', progress: progress_iu.update})
 						.then(res => res.blob())
 						.then(res => app.cache({command:'set-data', id:name, data:res}).then(e => res))
 					
@@ -1040,7 +1039,7 @@ class UI_Progress extends UI_Base {
 				this._caption = ''
 				this._head.clear()
 				this._line.css({width:'0'})
-				{ (data.root||app.main_ui||window.document.body)._(this) }
+				{ (data.root||main_ui||window.document.body)._(this) }
 			}
 			
 			// UPDATE
@@ -1127,20 +1126,11 @@ class UI_Main extends UI_Base {
 }
 
 ////////////////////////////////////// BOOT
-
+/**
 window.on('load', e => {
 
 	// app.host = localStorage.getItem('server')||''
 	
-	customElements.define( 'ui-list-editor', 		UI_ListEditor, 		{extends:'div'} )
-	customElements.define( 'ui-actor', 				UI_Actor, 			{extends:'div'} )
-	customElements.define( 'ui-storage',			UI_Storage,			{extends:'div'} )
-	customElements.define( 'ui-dataset',			UI_Dataset, 		{extends:'div'} )
-	customElements.define( 'ui-fields-selector',	UI_FieldSelector,	{extends:'div'} )
-	customElements.define( 'ui-progress', 			UI_Progress, 		{extends:'div'} )
-	customElements.define( 'ui-confirm',			UI_Confirm,			{extends:'div'} )
-	customElements.define( 'ui-pager',				UI_Pager, 			{extends:'div'} )
-	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )
 
 
 	app.get_param()
@@ -1152,3 +1142,23 @@ window.on('load', e => {
 	window.document.body._( app.main_ui )
 	
 }, {once: true} )
+**/
+
+var main_ui = undefined, progress_iu = undefined
+
+export const start_ui = () => {
+	customElements.define( 'ui-list-editor', 		UI_ListEditor, 		{extends:'div'} )
+	customElements.define( 'ui-actor', 				UI_Actor, 			{extends:'div'} )
+	customElements.define( 'ui-storage',			UI_Storage,			{extends:'div'} )
+	customElements.define( 'ui-dataset',			UI_Dataset, 		{extends:'div'} )
+	customElements.define( 'ui-fields-selector',	UI_FieldSelector,	{extends:'div'} )
+	customElements.define( 'ui-progress', 			UI_Progress, 		{extends:'div'} )
+	customElements.define( 'ui-confirm',			UI_Confirm,			{extends:'div'} )
+	customElements.define( 'ui-pager',				UI_Pager, 			{extends:'div'} )
+	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )	
+
+	progress_iu 	= _('div', {is:'ui-progress'})
+	main_ui 		= _('div', {is:'ui-main'})
+	
+	window.document.body._( main_ui )
+}

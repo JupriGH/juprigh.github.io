@@ -1,3 +1,4 @@
+/**
 import { app } from '../app.js'
 
 window.on('load', e => {
@@ -11,20 +12,20 @@ window.on('load', e => {
 		if (query.redir) {
 			// START FLOW
 			var server = `${query.param?.server||''}/api`
-			alert(server)
+			//alert(server)
 				
 			app.api({command:'auth-url', type: query.redir}, server)
-				.then(res => {
-					window.location.href = res.data
-				})
+				.then(res =>  window.location.href = res.data)
 				.catch(e => {			
 					window.opener.postMessage({type:'auth-fail'}, '*')
 					window.close()
 				})
 			
 		} else if (query.auth_type) {
-			window.opener.postMessage({type:'auth-done', done: query}, '*')
-			window.close()
+			
+			// window.opener.postMessage({type:'auth-done', done: query}, '*')
+			// window.close()
+			app.api({command:'auth-done', data: query}).finally(() => window.close())	
 		}
 	
 	} else {
@@ -33,3 +34,4 @@ window.on('load', e => {
 		window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')	
 	}
 }, {once: true})
+**/

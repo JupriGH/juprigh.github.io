@@ -27,7 +27,7 @@ export class DBClient {
 	
 	// INSIDE IFRAME
 	listen() {
-		window.on('load', e => {
+		//window.on('load', e => {
 
 			console.warn('[CACHE] location:', window.location.href)
 			
@@ -73,7 +73,7 @@ export class DBClient {
 				}
 			})
 			
-		})
+		//})
 	}
 }
 
@@ -385,7 +385,7 @@ export const app = window._app = {
 	cache_node : null, // iframe
 	cache_init : () =>  new Promise((resolve) => {
 		window.document.body._( 
-			_('iframe').css({display:'none'}).attr({src:'cache/'}).on('load', e => resolve(app.cache_node = e.target)) 
+			_('iframe').css({display:'none'}).attr({src:'?mode=cache'}).on('load', e => resolve(app.cache_node = e.target)) 
 		)
 	}),
 
@@ -397,7 +397,7 @@ export const app = window._app = {
 	}),
 
 	////////////////////////////////////////////////// OAUTH
-	auth_url		: './auth',	// bouncer url
+	//auth_url		: './auth',	// bouncer url
 	auth_resolve	: null, 	// callback
 	auth_timer		: null, 	// detect popup closed
 
@@ -436,7 +436,7 @@ export const app = window._app = {
 		// WINDOW
 		//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 		var popup = window.open( 
-			`${app.auth_url}/?redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
+			`?mode=auth&redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
 			`authwindow`,
 			'popup,location=no'
 			//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
@@ -451,3 +451,42 @@ export const app = window._app = {
 		}, 500)
 	})
 }
+
+////////////////////////////////////// BOOT
+import { start_ui } from './main.js'
+window.on('load', e => {
+	var query = app.get_param()
+	switch (query.mode) {
+	case 'manager':
+		start_ui()
+		break
+	case 'auth':
+		
+		//if (window.opener) {
+			if (query.redir) {
+				// START FLOW
+				var server = `${query.param?.server||''}/api`
+				alert(server)
+					
+				app.api({command:'auth-url', type: query.redir}, server)
+					.then(res =>  window.location.href = res.data)
+					.catch(e => {			
+						window.opener.postMessage({type:'auth-fail'}, '*')
+						window.close()
+					})
+				
+			} else if (query.auth_type) {
+				
+				app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
+			}
+		//} else {
+			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')	
+			
+		//}
+		break
+		
+	case 'cache':
+		new DBClient().listen()
+		break
+	}
+}, {once: true} )
