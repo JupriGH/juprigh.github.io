@@ -1121,8 +1121,8 @@ class UI_Main extends UI_Base {
 	on_storage_click 	= e => this.set_content(_('div', {is:'ui-storage'}))
 	//on_actor_click 		= e => app.cache_get('AONaNTUtji6ymussY').then(console.log)
 	
-	on_airtable_click 	= e => this.run(app.auth('airtable').then(res => res && app.api({command:'auth-done', data:res})))
-	on_google_click 	= e => this.run(app.auth('google')	.then(res => res && app.api({command:'auth-done', data:res})))
+	on_airtable_click 	= e => this.run(app.auth('airtable'))//.then(res => res && app.api({command:'auth-done', data:res})))
+	on_google_click 	= e => this.run(app.auth('google'))	//.then(res => res && app.api({command:'auth-done', data:res})))
 }
 
 ////////////////////////////////////// BOOT
@@ -1158,7 +1158,7 @@ export const start_ui = () => {
 	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )	
 
 	progress_iu 	= _('div', {is:'ui-progress'})
-	main_ui 		= _('div', {is:'ui-main'})
+	main_ui 		= app.main_ui = _('div', {is:'ui-main'})
 	
 	window.document.body._( main_ui )
 }

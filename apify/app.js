@@ -411,25 +411,33 @@ export const app = window._app = {
 	},
 	
 	auth_listen: e => {
+		
 		app.auth_clear()
 		
 		switch(e?.data?.type) {
 		case 'auth-fail':
 			//console.log('AUTH FAILED')
-			app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_resolve())
+			app.auth_reject('Authentication Failed!')
+			
+			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
 			break
 			
 		case 'auth-done':
-			app.auth_resolve(e?.data?.done)
+			var done = e?.data?.done
+			if (done)
+				app.api({command:'auth-done', data:done}).then(res => app.auth_resolve(res)).catch(e => app.auth_reject(e))
+			else
+				app.auth_reject(e)
 			break
 		}
 	},
 	
-	auth: auth_type => new Promise((resolve) => {
+	auth: auth_type => new Promise((resolve, reject) => {
 		
 		// SETUP
 		app.auth_clear()
 		app.auth_resolve = resolve
+		app.auth_reject  = reject
 		
 		window.on('message', app.auth_listen, {once:true})
 		
@@ -457,31 +465,43 @@ import { start_ui } from './main.js'
 window.on('load', e => {
 	var query = app.get_param()
 	switch (query.mode) {
+	
 	case 'manager':
 		start_ui()
 		break
+	
 	case 'auth':
 		
 		if (window.opener) {
 			if (query.redir) {
-				// START FLOW
+				// START AUTH FLOW
 				var server = `${query.param?.server||''}/api`
-				//alert(server)
-					
+				//server = 'http://127.0.0.1:8008/api'
+				//alert(`${1} ${server}`)
+				
 				app.api({command:'auth-url', type: query.redir}, server)
 					.then(res =>  window.location.href = res.data)
 					.catch(e => {			
+						alert('FAILED #1')
 						window.opener.postMessage({type:'auth-fail'}, '*')
 						window.close()
 					})
 				
 			} else if (query.auth_type) {
-				
-				app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
+			
+				//alert('DONE #1')
+				window.opener.postMessage({type:'auth-done', done: query}, '*')
+				window.close()
+				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
 			}
 		} else {
+			
 			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')
-			window.open(window.location.href, 'auth', 'popup')
+			//window.open(window.location.href, 'auth', 'popup')
+			//app.auth()
+			//alert(query.redir)
+			if (query.redir) app.auth(query.redir).then(res => alert(res))
+			
 		}
 		break
 		
