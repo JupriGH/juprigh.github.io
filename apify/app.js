@@ -465,9 +465,9 @@ export const app = window._app = {
 			console.log('START', popup)
 			console.log('SETINTERVAL', setInterval)
 			
-			app.auth_timer = setInterval( time => {
+			app.auth_timer = setInterval(() => {
 				
-				console.log('TIME', time, popup.closed, popup)	
+				console.log('TIME', popup.closed, popup)	
 				/**
 				if (popup.closed) {
 					//app.auth_clear()
