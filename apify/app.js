@@ -461,13 +461,17 @@ export const app = window._app = {
 				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 			)
 			
+			setInterval(() => {				
+				console.log('TIME2', 'OK')	
+			}, 1000)
+			
 			// DETECT CLOSED
 			console.log('START', popup)
 			console.log('SETINTERVAL', setInterval)
-			
+
 			app.auth_timer = setInterval(() => {
 				
-				console.log('TIME', popup.closed, popup)	
+				console.log('TIME', 'OK')	
 				/**
 				if (popup.closed) {
 					//app.auth_clear()
