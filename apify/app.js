@@ -521,6 +521,7 @@ window.on('load', e => {
 			//alert(query.redir)
 			
 			if (query.redir) {
+				window.document.body._('Make sure popup not blocked')
 				app.auth(query.redir)
 			}
 		}
