@@ -433,41 +433,50 @@ export const app = window._app = {
 		}
 	},
 	
-	auth: auth_type => new Promise((resolve, reject) => {
-		
-		// SETUP
-		app.auth_clear()
-		app.auth_resolve = resolve
-		app.auth_reject  = reject
-		
-		window.on('message', app.auth_listen, {once:true})
-		
-		// WINDOW
-		//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
-		var popup = window.open( 
-			`?mode=auth&redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
-			`authwindow`,
-			'popup,location=no'
-			//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
-		)
-		
-		// DETECT CLOSED
-		console.log('START', popup)
-		console.log('SETINTERVAL', setInterval)
-		
-		app.auth_timer = setInterval( time => {
-			console.log('TIME', time, popup.closed, popup)			
-			if (popup.closed) {
-				//app.auth_clear()
-				//reject('Authentication Cancelled!')
-				window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
-			} else {
-	
-			}
+	auth: auth_type => {
+		//////////////////////////////////
+		console.log('TEST TIMER')
+		var timer_id = setInterval(() => {
+			console.log('TIMER OK')
 		}, 1000)
+		//////////////////////////////////
 		
-		console.log('TIMER-ID', app.auth_timer)
-	})
+		return new Promise((resolve, reject) => {
+
+			// SETUP
+			app.auth_clear()
+			app.auth_resolve = resolve
+			app.auth_reject  = reject
+			
+			window.on('message', app.auth_listen, {once:true})
+			
+			// WINDOW
+			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
+			var popup = window.open( 
+				`?mode=auth&redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
+				`authwindow`,
+				'popup,location=no'
+				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
+			)
+			
+			// DETECT CLOSED
+			console.log('START', popup)
+			console.log('SETINTERVAL', setInterval)
+			
+			app.auth_timer = setInterval( time => {
+				console.log('TIME', time, popup.closed, popup)			
+				if (popup.closed) {
+					//app.auth_clear()
+					//reject('Authentication Cancelled!')
+					window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
+				} else {
+		
+				}
+			}, 1000)
+			
+			console.log('TIMER-ID', app.auth_timer)
+		})
+	}
 }
 
 ////////////////////////////////////// BOOT
@@ -481,7 +490,7 @@ window.on('load', e => {
 		break
 	
 	case 'auth':
-		/**
+
 		if (window.opener) {
 			if (query.redir) {
 				// START AUTH FLOW
@@ -513,15 +522,8 @@ window.on('load', e => {
 			//window.open(window.location.href, 'auth', 'popup')
 			//app.auth()
 			//alert(query.redir)
-			if (query.redir) app.auth(query.redir)//.then(res => alert(res))
-			
+			if (query.redir) app.auth(query.redir)//.then(res => alert(res))			
 		}
-		**/
-		
-		console.log('TEST TIMER')
-		var timer_id = setInterval(() => {
-			console.log('TIMER OK')
-		}, 1000)
 		
 		break
 		
