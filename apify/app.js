@@ -414,19 +414,19 @@ export const app = window._app = {
 		
 		console.log('AUTH_LISTEN', e)
 		
-		app.auth_clear()
-		
 		switch(e?.data?.type) {
 		
-		case 'auth-fail':
-			//console.log('AUTH FAILED')
-			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))
+		case 'dm-auth-fail':
 			
+			app.auth_clear()
+			//console.log('AUTH FAILED')
+			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))			
 			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
 			break
 			
-		case 'auth-done':
+		case 'dm-auth-done':
 		
+			app.auth_clear()
 			var done = e?.data?.done
 			if (done)
 				app.api({command:'auth-done', data:done}).then(res => app.auth_resolve(res)).catch(e => app.auth_reject(e))
@@ -437,24 +437,17 @@ export const app = window._app = {
 	},
 	
 	auth: auth_type => {
-		//////////////////////////////////
-		/**
-		console.log('TEST TIMER')
-		var timer_id = setInterval(() => {
-			console.log('TIMER OK')
-		}, 1000)
-		**/
-		//////////////////////////////////
-		
-		return new Promise((resolve, reject) => {
 
+		return new Promise((resolve, reject) => {
+			
+			
 			// SETUP
 			app.auth_clear()
 			app.auth_resolve = resolve
 			app.auth_reject  = reject
 			
 			window.on('message', app.auth_listen, {once:true})
-			
+
 			// WINDOW
 			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 			var popup = window.open( 
@@ -464,46 +457,37 @@ export const app = window._app = {
 				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 			)
 			
-			setInterval(() => {				
-				console.log('TIME2', 'OK')	
-			}, 1000)
-			
 			// DETECT CLOSED
-			console.log('START', popup)
-			console.log('SETINTERVAL', setInterval)
 
 			app.auth_timer = setInterval(() => {
-				
-				console.log('TIME', 'OK')	
-				/**
 				if (popup.closed) {
 					//app.auth_clear()
 					//reject('Authentication Cancelled!')
-					window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
-				} else {
-		
+					window.postMessage({type:'dm-auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
+					app.auth_clear()
 				}
-				**/
 			}, 1000)
-			
-			console.log('TIMER-ID', app.auth_timer)
 		})
 	}
 }
 
 ////////////////////////////////////// BOOT
 import { start_ui } from './main.js'
+
 window.on('load', e => {
 	var query = app.get_param()
 	switch (query.mode) {
 	
 	case 'manager':
+
 		start_ui()
 		break
 	
 	case 'auth':
 
 		if (window.opener) {
+
+		
 			if (query.redir) {
 				// START AUTH FLOW
 				var server = `${query.param?.server||''}/api`
@@ -513,8 +497,8 @@ window.on('load', e => {
 				app.api({command:'auth-url', type: query.redir}, server)
 					.then(res =>  window.location.href = res.data)
 					.catch(e => {			
-						alert('FAILED #1')
-						window.opener.postMessage({type:'auth-fail'}, '*')
+						//alert('FAILED #1')
+						window.opener.postMessage({type:'dm-auth-fail'}, '*')
 						
 						//window.close()
 					})
@@ -522,19 +506,23 @@ window.on('load', e => {
 			} else if (query.auth_type) {
 			
 				//alert('DONE #1')
-				window.opener.postMessage({type:'auth-done', done: query}, '*')
+				window.opener.postMessage({type:'dm-auth-done', done: query}, '*')
 				console.log('TODO', 'window.close')
 				
 				//window.close()
 				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
 			}
+			
 		} else {
 			
 			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')
 			//window.open(window.location.href, 'auth', 'popup')
 			//app.auth()
 			//alert(query.redir)
-			if (query.redir) app.auth(query.redir)//.then(res => alert(res))			
+			
+			if (query.redir) {
+				app.auth(query.redir)
+			}
 		}
 		
 		break
