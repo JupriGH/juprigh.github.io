@@ -417,17 +417,18 @@ export const app = window._app = {
 		switch(e?.data?.type) {
 		case 'auth-fail':
 			//console.log('AUTH FAILED')
-			app.auth_reject('Authentication Failed!')
+			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))
 			
 			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
 			break
 			
 		case 'auth-done':
+		
 			var done = e?.data?.done
 			if (done)
 				app.api({command:'auth-done', data:done}).then(res => app.auth_resolve(res)).catch(e => app.auth_reject(e))
 			else
-				app.auth_reject(e)
+				app.api({command:'auth-done', data:{'error':'NO_DATA'}}).then( _ => app.auth_reject('No Data!'))
 			break
 		}
 	},
@@ -453,8 +454,9 @@ export const app = window._app = {
 		// DETECT CLOSED
 		app.auth_timer = setInterval( time => {
 			if (popup.closed) {
-				app.auth_clear()
-				resolve()
+				//app.auth_clear()
+				//reject('Authentication Cancelled!')
+				window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
 			}
 		}, 500)
 	})
@@ -500,7 +502,7 @@ window.on('load', e => {
 			//window.open(window.location.href, 'auth', 'popup')
 			//app.auth()
 			//alert(query.redir)
-			if (query.redir) app.auth(query.redir).then(res => alert(res))
+			if (query.redir) app.auth(query.redir)//.then(res => alert(res))
 			
 		}
 		break
