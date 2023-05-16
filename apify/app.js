@@ -457,8 +457,11 @@ export const app = window._app = {
 				//app.auth_clear()
 				//reject('Authentication Cancelled!')
 				window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
+			} else {
+				
+				console.log(popup)
 			}
-		}, 500)
+		}, 1000)
 	})
 }
 
@@ -486,7 +489,8 @@ window.on('load', e => {
 					.catch(e => {			
 						alert('FAILED #1')
 						window.opener.postMessage({type:'auth-fail'}, '*')
-						window.close()
+						
+						//window.close()
 					})
 				
 			} else if (query.auth_type) {
