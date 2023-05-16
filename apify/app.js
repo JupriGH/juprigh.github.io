@@ -435,10 +435,12 @@ export const app = window._app = {
 	
 	auth: auth_type => {
 		//////////////////////////////////
+		/**
 		console.log('TEST TIMER')
 		var timer_id = setInterval(() => {
 			console.log('TIMER OK')
 		}, 1000)
+		**/
 		//////////////////////////////////
 		
 		return new Promise((resolve, reject) => {
@@ -464,7 +466,9 @@ export const app = window._app = {
 			console.log('SETINTERVAL', setInterval)
 			
 			app.auth_timer = setInterval( time => {
-				console.log('TIME', time, popup.closed, popup)			
+				
+				console.log('TIME', time, popup.closed, popup)	
+				/**
 				if (popup.closed) {
 					//app.auth_clear()
 					//reject('Authentication Cancelled!')
@@ -472,6 +476,7 @@ export const app = window._app = {
 				} else {
 		
 				}
+				**/
 			}, 1000)
 			
 			console.log('TIMER-ID', app.auth_timer)
