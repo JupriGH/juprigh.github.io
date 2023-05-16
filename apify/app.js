@@ -493,7 +493,9 @@ window.on('load', e => {
 			
 				//alert('DONE #1')
 				window.opener.postMessage({type:'auth-done', done: query}, '*')
-				window.close()
+				console.log('TODO', 'window.close')
+				
+				//window.close()
 				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
 			}
 		} else {
