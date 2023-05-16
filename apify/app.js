@@ -412,9 +412,12 @@ export const app = window._app = {
 	
 	auth_listen: e => {
 		
+		console.log('AUTH_LISTEN', e)
+		
 		app.auth_clear()
 		
 		switch(e?.data?.type) {
+		
 		case 'auth-fail':
 			//console.log('AUTH FAILED')
 			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))
