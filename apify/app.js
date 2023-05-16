@@ -415,7 +415,7 @@ export const app = window._app = {
 		console.log('AUTH_LISTEN', e)
 		
 		switch(e?.data?.type) {
-		
+		/**
 		case 'dm-auth-fail':
 			
 			app.auth_clear()
@@ -423,7 +423,7 @@ export const app = window._app = {
 			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))			
 			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
 			break
-			
+		**/
 		case 'dm-auth-done':
 		
 			app.auth_clear()
@@ -439,8 +439,7 @@ export const app = window._app = {
 	auth: auth_type => {
 
 		return new Promise((resolve, reject) => {
-			
-			
+
 			// SETUP
 			app.auth_clear()
 			app.auth_resolve = resolve
@@ -458,7 +457,6 @@ export const app = window._app = {
 			)
 			
 			// DETECT CLOSED
-
 			app.auth_timer = setInterval(() => {
 				if (popup.closed) {
 					//app.auth_clear()
@@ -498,18 +496,15 @@ window.on('load', e => {
 					.then(res =>  window.location.href = res.data)
 					.catch(e => {			
 						//alert('FAILED #1')
-						window.opener.postMessage({type:'dm-auth-fail'}, '*')
-						
-						//window.close()
+						window.opener.postMessage({type:'dm-auth-done', done: {'error': 'GET_URL_FAILED'}}, '*')
+						window.close()
 					})
 				
 			} else if (query.auth_type) {
 			
 				//alert('DONE #1')
 				window.opener.postMessage({type:'dm-auth-done', done: query}, '*')
-				console.log('TODO', 'window.close')
-				
-				//window.close()
+				window.close()
 				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
 			}
 			
