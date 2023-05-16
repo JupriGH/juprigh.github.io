@@ -453,6 +453,7 @@ export const app = window._app = {
 		
 		// DETECT CLOSED
 		console.log('START', popup)
+		console.log('SETINTERVAL', setInterval)
 		
 		app.auth_timer = setInterval( time => {
 			console.log('TIME', time, popup.closed, popup)
