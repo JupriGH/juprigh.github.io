@@ -464,7 +464,7 @@ export const app = window._app = {
 					window.postMessage({type:'dm-auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
 					app.auth_clear()
 				}
-			}, 1000)
+			}, 500)
 		})
 	}
 }
