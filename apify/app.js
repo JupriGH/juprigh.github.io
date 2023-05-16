@@ -446,7 +446,7 @@ export const app = window._app = {
 			app.auth_resolve = resolve
 			app.auth_reject  = reject
 			
-			window.on('message', app.auth_listen, {once:true})
+			window.on('message', app.auth_listen) //, {once:true})
 
 			// WINDOW
 			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
