@@ -481,7 +481,7 @@ window.on('load', e => {
 		break
 	
 	case 'auth':
-		
+		/**
 		if (window.opener) {
 			if (query.redir) {
 				// START AUTH FLOW
@@ -516,6 +516,13 @@ window.on('load', e => {
 			if (query.redir) app.auth(query.redir)//.then(res => alert(res))
 			
 		}
+		**/
+		
+		console.log('TEST TIMER')
+		var timer_id = setInterval(() => {
+			console.log('TIMER OK')
+		}, 1000)
+		
 		break
 		
 	case 'cache':
