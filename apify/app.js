@@ -452,14 +452,18 @@ export const app = window._app = {
 		)
 		
 		// DETECT CLOSED
+		console.log('START', popup)
+		
 		app.auth_timer = setInterval( time => {
+			console.log('TIME', time, popup.closed, popup)
+			
 			if (popup.closed) {
 				//app.auth_clear()
 				//reject('Authentication Cancelled!')
 				window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
 			} else {
 				
-				console.log(popup)
+				
 			}
 		}, 1000)
 	})
