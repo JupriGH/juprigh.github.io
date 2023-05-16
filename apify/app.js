@@ -456,22 +456,17 @@ export const app = window._app = {
 		console.log('SETINTERVAL', setInterval)
 		
 		app.auth_timer = setInterval( time => {
-			/**
-			console.log('TIME', time, popup.closed, popup)
-			
+			console.log('TIME', time, popup.closed, popup)			
 			if (popup.closed) {
 				//app.auth_clear()
 				//reject('Authentication Cancelled!')
 				window.postMessage({type:'auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
 			} else {
-				
-				
+	
 			}
-			**/
-			
-			alert('TIMER')
-			
-		}, 3000)
+		}, 1000)
+		
+		console.log('TIMER-ID', app.auth_timer)
 	})
 }
 
