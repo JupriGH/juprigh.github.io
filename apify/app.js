@@ -456,6 +456,7 @@ export const app = window._app = {
 		console.log('SETINTERVAL', setInterval)
 		
 		app.auth_timer = setInterval( time => {
+			/**
 			console.log('TIME', time, popup.closed, popup)
 			
 			if (popup.closed) {
@@ -466,7 +467,11 @@ export const app = window._app = {
 				
 				
 			}
-		}, 1000)
+			**/
+			
+			alert('TIMER')
+			
+		}, 3000)
 	})
 }
 
