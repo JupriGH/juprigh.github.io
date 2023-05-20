@@ -1,3 +1,4 @@
+import { UI_Base } from '../core.js'
 import { app, fetch_gzip, gunzip } from './app.js'
 
 const 	LIST_ACTORS   = '__ACTORS__',
@@ -59,50 +60,9 @@ const deep_get = (node, path) => {
 	return node
 }
 
-////////////////////////////////////// BASE INTERFACE
 
-class UI_Base extends HTMLDivElement {
-	constructor() {
-		super()
-	}
 
-	button = (command, caption) => _('button').attr({type:'button'}).data({command}).on('click', this)._(caption)
-	
-	run(promise, element) {
-		(element||this).dataset.running = 1
-		
-		return promise
-			.catch(e => {
-				var arg = undefined
-					 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
-				else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
-				else {
-					console.error('RUN', e)
-					arg = {message:e.error||e, type:'error'}
-				}
-				return this.confirm(arg)
-			})
-			.finally(() => delete (element||this).dataset.running)
-	}
-	
-	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
-		var modal = _('div', {is:'ui-confirm'})._open({message, type, content, buttons, callback:resolve})
-		var res = (element||main_ui)._(modal)
-		/// modal.showModal()
-		return modal
-	})
 
-	handleEvent(e, ... args) {		
-		var command = e.currentTarget.dataset.command ?? e.target.dataset.command
-		command = command ? `on_${command}_${e.type}` : `on_${e.type}`
-		command = command.replace('-','_')
-
-		if (this[command]) this[command](e, ... args)
-		else console.warn('event:', command, ... args)
-	}
-	
-	animate_close = () => this.css({'animation':'animate-zoom-out 0.5s'}).on('animationend', e => this.remove()) 
-}
 
 ////////////////////////////////////// BUTTON LIST
 class UI_Pager extends UI_Base {

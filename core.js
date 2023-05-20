@@ -345,3 +345,133 @@ console.log('========================')
 }
 
 window._ = window.document.createElement.bind( window.document )
+
+////////////////////////////////////// BASE APPLICATION
+class Application {
+	
+	api_host 	= ''
+	param 		= null // query parameters
+
+	get_param = () => {
+		var query = Object.fromEntries(new URLSearchParams(window.location.search).entries())
+		var {param} = query
+		if (param) {
+			this.param = param
+			param = query.param = JSON.parse(atob(param))
+			console.log('PARAM', param)
+			this.api_host = param.server
+		}
+		return query
+	}
+
+	api = (query, url, progress) => {
+		if (!url) url = `${this.api_host}/api`
+		console.log('<api> <<', query)
+
+		var prom = fetch(url, {
+			method		: 'POST',
+			cache		: 'no-cache',
+			headers		: {'Content-Type': 'application/json'},
+			credentials	: 'include', // omit / include
+			body		: JSON.stringify(query) 
+		})
+		
+		if (0) { // (progress) {
+			prom = prom.then(res => 
+				new Promise((resolve) => {
+					var tmp = new Response(
+						new ReadableStream({
+							async start(controller) {
+								var reader = res.body.getReader()
+								var count = 0
+								var total = res.headers.get('content-length')
+								console.log('TOTAL', total)
+								total = parseInt(total, 10)
+								
+								progress({caption:'downloading ... ', count:0, total:0})
+								
+								for (;;) {
+									var {done, value} = await reader.read()
+									//console.log('---', done, value)
+									
+									if (done) break
+
+									count += value.byteLength
+									try {
+										progress({count, total})
+									} catch (e) {
+										console.error(e)
+									}
+									controller.enqueue(value)
+								}
+								//console.log('download completed')
+								progress()
+								controller.close()
+								resolve(tmp)
+							}
+						})
+					)
+				})
+			)
+		}
+		///
+		return prom
+			.then(res => res.json())
+			.then(res => {
+				if (res.code === 0) {
+					console.log('<api> >>', res)
+					return res
+				} else {
+					console.error('<api> >>', res)
+					if (!res.error) res.error = 'Unknwon API error'
+					return Promise.reject(res)
+				}
+			})
+	}
+}
+
+////////////////////////////////////// BASE INTERFACE
+class UI_Base extends HTMLDivElement {
+	constructor() {
+		super()
+	}
+
+	button = (command, caption) => _('button').attr({type:'button'}).data({command}).on('click', this)._(caption)
+	
+	run(promise, element) {
+		(element||this).dataset.running = 1
+		
+		return promise
+			.catch(e => {
+				var arg = undefined
+					 if (e.error) 	arg = {message:e.error, 		type:'error'} // red
+				else if (e.warning)	arg = {message:e.warning, 		type:'alert'} // yellow
+				else {
+					console.error('RUN', e)
+					arg = {message:e.error||e, type:'error'}
+				}
+				return this.confirm(arg)
+			})
+			.finally(() => delete (element||this).dataset.running)
+	}
+	
+	confirm = ({message, type, content, buttons, element}) => new Promise((resolve) => {
+		var modal = _('div', {is:'ui-confirm'})._open({message, type, content, buttons, callback:resolve})
+		var res = (element||this)._(modal)
+		/// modal.showModal()
+		return modal
+	})
+
+	handleEvent(e, ... args) {		
+		var command = e.currentTarget.dataset.command ?? e.target.dataset.command
+		command = command ? `on_${command}_${e.type}` : `on_${e.type}`
+		command = command.replace('-','_')
+
+		if (this[command]) this[command](e, ... args)
+		else console.warn('event:', command, ... args)
+	}
+	
+	animate_close = () => this.css({'animation':'animate-zoom-out 0.5s'}).on('animationend', e => this.remove()) 
+}
+
+export { Application, UI_Base }

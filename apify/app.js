@@ -1,4 +1,4 @@
-import '../core.js'
+import { Application } from '../core.js'
 
 /////////////////////////////
 export class DBClient {
@@ -130,26 +130,107 @@ export const fetch_gzip = async ({url, compress, progress}) => {
 }
 
 ///////////////////////////////
-export const app = window._app = {
-	host	: '', //'https://1ehucfdghji5.runs.apify.net/api',
-	param	: undefined,
+
+class DM_App extends Application {
+	
+	////////////////////////////////////////////////// CACHE
+	// https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
+	// https://advancedweb.hu/how-to-use-async-await-with-postmessage/
+		
+	cache_node = null // iframe	
+	cache_init = () =>  new Promise((resolve) => {
+		window.document.body._( 
+			_('iframe').css({display:'none'}).attr({src:'?mode=cache'}).on('load', e => resolve(this.cache_node = e.target)) 
+		)
+	})
+	cache = query => new Promise((resolve, reject) => { // {command, key, data}
+		var {port1, port2} = new MessageChannel()
+		this.cache_node.contentWindow.postMessage('INIT', '*', [port2])
+		port1.onmessage = e => resolve(e.data)
+		port1.postMessage(query)
+	})
+
+	////////////////////////////////////////////////// OAUTH
+
+	//auth_url		: './auth',	// bouncer url
+	auth_resolve	= null 	// callback
+	auth_timer		= null 	// detect popup closed
+
+	auth_clear = () => {
+		// cleanup
+		if (this.auth_timer) {
+			clearInterval(this.auth_timer)
+			this.auth_timer = null
+		}
+		window.removeEventListener('message', this.auth_state) 
+	}
+	
+	auth_listen = e => {
+		
+		console.log('AUTH_LISTEN', e)
+		
+		switch(e?.data?.type) {
+		/**
+		case 'dm-auth-fail':
+			
+			app.auth_clear()
+			//console.log('AUTH FAILED')
+			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))			
+			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
+			break
+		**/
+		case 'dm-auth-done':
+		
+			this.auth_clear()
+			var done = e?.data?.done
+			if (done)
+				this.api({command:'auth-done', data:done}).then(res => this.auth_resolve(res)).catch(e => this.auth_reject(e))
+			else
+				this.api({command:'auth-done', data:{'error':'NO_DATA'}}).then( _ => this.auth_reject('No Data!'))
+			break
+		}
+	}
+	
+	auth = auth_type => {
+
+		return new Promise((resolve, reject) => {
+
+			// SETUP
+			this.auth_clear()
+			this.auth_resolve = resolve
+			this.auth_reject  = reject
+			
+			window.on('message', this.auth_listen) //, {once:true})
+
+			// WINDOW
+			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
+			var popup = window.open( 
+				`?mode=auth&redir=${auth_type}` + (this.param ? `&param=${this.param}` : ''),
+				`authwindow`,
+				'popup,location=no'
+				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
+			)
+			
+			// DETECT CLOSED
+			this.auth_timer = setInterval(() => {
+				if (popup.closed) {
+					//app.auth_clear()
+					//reject('Authentication Cancelled!')
+					window.postMessage({type:'dm-auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
+					this.auth_clear()
+				}
+			}, 500)
+		})
+	}
+
+}
+
+export const app = window._app = new DM_App()
+
+export const xapp = {
+
 	actors	: {},
 
-	//gunzip,
-	//fetch_gzip,
-
-	get_param : () => {
-		var query = Object.fromEntries(new URLSearchParams(window.location.search).entries())
-		var {param} = query
-		if (param) {
-			app.param = param
-			param = query.param = JSON.parse(atob(param))
-			console.log('PARAM', param)
-			app.host = param.server
-		}
-		return query
-	},
-		
 	sse(query, url, progress) {
 		
 		return new Promise((resolve, reject) => {
@@ -288,70 +369,7 @@ export const app = window._app = {
 		})
 	},
 	
-	api(query, url, progress) {
-		if (!url) url = `${this.host}/api`
-		console.log('<api> <<', query)
 
-		var prom = fetch(url, {
-			method		: 'POST',
-			cache		: 'no-cache',
-			headers		: {'Content-Type': 'application/json'},
-			credentials	: 'include', // omit / include
-			body		: JSON.stringify(query) 
-		})
-		
-		if (0) { // (progress) {
-			prom = prom.then(res => 
-				new Promise((resolve) => {
-					var tmp = new Response(
-						new ReadableStream({
-							async start(controller) {
-								var reader = res.body.getReader()
-								var count = 0
-								var total = res.headers.get('content-length')
-								console.log('TOTAL', total)
-								total = parseInt(total, 10)
-								
-								progress({caption:'downloading ... ', count:0, total:0})
-								
-								for (;;) {
-									var {done, value} = await reader.read()
-									//console.log('---', done, value)
-									
-									if (done) break
-
-									count += value.byteLength
-									try {
-										progress({count, total})
-									} catch (e) {
-										console.error(e)
-									}
-									controller.enqueue(value)
-								}
-								//console.log('download completed')
-								progress()
-								controller.close()
-								resolve(tmp)
-							}
-						})
-					)
-				})
-			)
-		}
-		///
-		return prom
-			.then(res => res.json())
-			.then(res => {
-				if (res.code === 0) {
-					console.log('<api> >>', res)
-					return res
-				} else {
-					console.error('<api> >>', res)
-					if (!res.error) res.error = 'Unknwon API error'
-					return Promise.reject(res)
-				}
-			})
-	},
 	
 	get_column(value, format) {
 		if (value === null) 				return _('td').css('col-empty')._('null') 
@@ -376,97 +394,6 @@ export const app = window._app = {
 		return _('td')._(value.toString())
 	},
 	
-	
-	
-	////////////////////////////////////////////////// CACHE
-	// https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
-	// https://advancedweb.hu/how-to-use-async-await-with-postmessage/
-		
-	cache_node : null, // iframe
-	cache_init : () =>  new Promise((resolve) => {
-		window.document.body._( 
-			_('iframe').css({display:'none'}).attr({src:'?mode=cache'}).on('load', e => resolve(app.cache_node = e.target)) 
-		)
-	}),
-
-	cache: (query) => new Promise((resolve, reject) => { // {command, key, data}
-		var {port1, port2} = new MessageChannel()
-		app.cache_node.contentWindow.postMessage('INIT', '*', [port2])
-		port1.onmessage = e => resolve(e.data)
-		port1.postMessage(query)
-	}),
-
-	////////////////////////////////////////////////// OAUTH
-	//auth_url		: './auth',	// bouncer url
-	auth_resolve	: null, 	// callback
-	auth_timer		: null, 	// detect popup closed
-
-	auth_clear: () => {
-		// cleanup
-		if (app.auth_timer) {
-			clearInterval(app.auth_timer)
-			app.auth_timer = null
-		}
-		window.removeEventListener('message', app.auth_state) 
-	},
-	
-	auth_listen: e => {
-		
-		console.log('AUTH_LISTEN', e)
-		
-		switch(e?.data?.type) {
-		/**
-		case 'dm-auth-fail':
-			
-			app.auth_clear()
-			//console.log('AUTH FAILED')
-			app.api({command:'auth-done', data:{'error':'FAILED'}}).then( _ => app.auth_reject('Authentication Failed!'))			
-			//app.main_ui.confirm({message:'Authentication Failed!', type:'error'}).then(() => app.auth_reject(e))
-			break
-		**/
-		case 'dm-auth-done':
-		
-			app.auth_clear()
-			var done = e?.data?.done
-			if (done)
-				app.api({command:'auth-done', data:done}).then(res => app.auth_resolve(res)).catch(e => app.auth_reject(e))
-			else
-				app.api({command:'auth-done', data:{'error':'NO_DATA'}}).then( _ => app.auth_reject('No Data!'))
-			break
-		}
-	},
-	
-	auth: auth_type => {
-
-		return new Promise((resolve, reject) => {
-
-			// SETUP
-			app.auth_clear()
-			app.auth_resolve = resolve
-			app.auth_reject  = reject
-			
-			window.on('message', app.auth_listen) //, {once:true})
-
-			// WINDOW
-			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
-			var popup = window.open( 
-				`?mode=auth&redir=${auth_type}` + (app.param ? `&param=${app.param}` : ''),
-				`authwindow`,
-				'popup,location=no'
-				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
-			)
-			
-			// DETECT CLOSED
-			app.auth_timer = setInterval(() => {
-				if (popup.closed) {
-					//app.auth_clear()
-					//reject('Authentication Cancelled!')
-					window.postMessage({type:'dm-auth-done', done:{'auth_type':auth_type, 'error': 'CLOSED', 'error_description': 'Cancelled.'}})
-					app.auth_clear()
-				}
-			}, 500)
-		})
-	}
 }
 
 ////////////////////////////////////// BOOT
