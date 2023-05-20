@@ -13,6 +13,29 @@ const	PER_PAGE = 100
 ////////////////////////////////////// UTILS
 const range = (min,max,step=1) => Array.from({length:Math.ceil((max-min)/step)}, (_,i) => min + (i * step))
 
+const get_column = (value, format) => {
+	if (value === null) 				return _('td').css('col-empty')._('null') 
+	if (value === undefined) 			return _('td').css('col-empty')._('undefined')
+	if (value.constructor === Boolean)	return _('td').css('col-bool')._(value)
+	if (value.constructor === Number)	return _('td').css('col-number')._(value)
+	if (value.constructor === Date)		return _('td').css('col-date')._(value.toLocaleString('en-GB'))
+	if (value.constructor === Object)	return _('td').css('col-object').data({view:1})._(JSON.stringify(value))
+	if (value.constructor === Array)	return _('td').css('col-array') .data({view:1})._(JSON.stringify(value))
+	if (value.constructor === String) {
+		
+		// format: link, image
+		if (value.match(/^https?:\/\//))
+			return _('td')._( _('a').attr({href:value,target:'_blank'})._(value) )
+		else if (value.match(/^(\+\-)?[0-9.,]+$/))
+			return _('td').css('col-number')._(value)
+		else
+			// STRING
+			return _('td')._(value)
+	
+	}
+	return _('td')._(value.toString())
+}
+	
 /*
 const DeCompressB64 = async data => {
 	var arr = Uint8Array.from(atob(data), c => c.charCodeAt(0))
@@ -439,11 +462,11 @@ class UI_Storage extends UI_Base { // storage list
 						),
 						_('td')._(`📁 ${e.id}`),
 						_('td')._(e.name),
-						app.get_column(e.itemCount),
-						app.get_column(new Date(e.createdAt * 1000)),
-						app.get_column(new Date(e.modifiedAt * 1000)),
-						app.get_column(e.stats?.s3StorageBytes),
-						app.get_column(e.stats?.inflatedBytes),
+						get_column(e.itemCount),
+						get_column(new Date(e.createdAt * 1000)),
+						get_column(new Date(e.modifiedAt * 1000)),
+						get_column(e.stats?.s3StorageBytes),
+						get_column(e.stats?.inflatedBytes),
 						_('td').css('sticky-r')
 				)
 			}))
@@ -691,7 +714,7 @@ class UI_Dataset extends UI_Base {
 		this._list.clear()._(
 			... data.map(e => _('tr')._(
 				_('th').css('row-index','sticky-l')._(++ index),
-				... head.map(h => app.get_column(deep_get(e, h.path)).data({head:h.label}))
+				... head.map(h => get_column(deep_get(e, h.path)).data({head:h.label}))
 			))
 		)
 		this._table.scroll({top:0, left:0}) //, behavior:'smooth'})

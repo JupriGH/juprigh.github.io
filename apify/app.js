@@ -133,6 +133,8 @@ export const fetch_gzip = async ({url, compress, progress}) => {
 
 class DM_App extends Application {
 	
+	actors	= {}
+	
 	////////////////////////////////////////////////// CACHE
 	// https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
 	// https://advancedweb.hu/how-to-use-async-await-with-postmessage/
@@ -229,7 +231,7 @@ export const app = window._app = new DM_App()
 
 export const xapp = {
 
-	actors	: {},
+	
 
 	sse(query, url, progress) {
 		
@@ -371,28 +373,7 @@ export const xapp = {
 	
 
 	
-	get_column(value, format) {
-		if (value === null) 				return _('td').css('col-empty')._('null') 
-		if (value === undefined) 			return _('td').css('col-empty')._('undefined')
-		if (value.constructor === Boolean)	return _('td').css('col-bool')._(value)
-		if (value.constructor === Number)	return _('td').css('col-number')._(value)
-		if (value.constructor === Date)		return _('td').css('col-date')._(value.toLocaleString('en-GB'))
-		if (value.constructor === Object)	return _('td').css('col-object').data({view:1})._(JSON.stringify(value))
-		if (value.constructor === Array)	return _('td').css('col-array') .data({view:1})._(JSON.stringify(value))
-		if (value.constructor === String) {
-			
-			// format: link, image
-			if (value.match(/^https?:\/\//))
-				return _('td')._( _('a').attr({href:value,target:'_blank'})._(value) )
-			else if (value.match(/^(\+\-)?[0-9.,]+$/))
-				return _('td').css('col-number')._(value)
-			else
-				// STRING
-				return _('td')._(value)
-		
-		}
-		return _('td')._(value.toString())
-	},
+
 	
 }
 
