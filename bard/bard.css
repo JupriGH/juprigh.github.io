@@ -21,9 +21,39 @@ img.ui-avatar {
 	color: white !important;
 	font-size: larger !important;
 }
+/** OUTPUT **/
+.ui-output-container {
+	flex-grow: 1;
+}
 .ui-output {
 	flex-grow: 1;
 }
+.ui-query-list {
+	flex-shrink: 0;
+	min-width: 100px;
+	max-width: 30%;
+	background-color: rgba(0,0,0,0.1);
+	border-radius: 5px;
+}
+.ui-query-item {
+    background-color: #FFEB3B;
+    margin: 2px;
+    padding: 5px;
+    border-radius: 3px;
+	cursor: pointer;
+}
+.ui-query-item:hover {
+    background-color: yellow;
+}
+
+/** INPUT **/
+.ui-input-container {
+	flex-shrink: 0;
+}
+.ui-prompt {
+	flex-shrink:0;
+}
+
 
 .ui-query, 
 .ui-answer {

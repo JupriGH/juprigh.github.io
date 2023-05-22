@@ -11,11 +11,16 @@ class UI_Main extends UI_Base {
 		super()
 		
 		this.css('ui-main','flex-col')._(
-			this._output = _('div').css('ui-output', 'flex-col'),
+			_('div').css('ui-output-container', 'flex-row')._(
+				this._output = _('div').css('ui-output', 'flex-col'),
+				this._index = _('div').css('ui-query-list', 'flex-col')
+			),
 			_('div').css('ui-prompt')._(
-				_('input').css('ui-chatbox').attr({type:'text', placeholder:'Enter a prompt here'}).data({command:'chat'}).on('keyup', this)
+				_('input').css('ui-chatbox').attr({type:'text', placeholder:'Enter a prompt here. Type /quit to end conversation.'}).data({command:'chat'}).on('keyup', this),
 			)
 		)
+		
+		this._counter = 0
 		this._last = null
 		
 		app.api({command: 'config'}).then(res => {
@@ -26,49 +31,51 @@ class UI_Main extends UI_Base {
 	
 	_query = (text) => {
 		var text = text.trim()
-		if (text) {
+		if (!text) return
 
-			var box = undefined
-			var out = undefined
+		var box = undefined
+		var out = undefined
+		
+		var index = (this._counter += 1)
+		
+		this._output._( 
+			_('div').css('ui-query').data({index})._(
+				_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
+				text
+			),
+			box = this._last = _('div').css('ui-answer')._(_('i')._('thinking ...'))
+		)
+		this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text).on('click', this))
+		
+		box.scrollIntoView({behavior:'smooth'})
+		
+		app.api({command:'prompt', text}).then(res => out = res?.data)
+		.finally( () => {
 			
-			this._output._( 
-				_('div').css('ui-query')._(
-					_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
-					text
-				),
-				box = this._last = _('div').css('ui-answer')._(_('i')._('thinking ...'))
-			)
-			
-			box.scrollIntoView({behavior:'smooth'})
-			
-			app.api({command:'prompt', text}).then(res => out = res?.data)
-			.finally( () => {
-				
-				box.clear()
-				if (out) {
-					if (out.content)
-						box._(_('pre')._(out.content))
-					if (out.sources)						
-						box._(
-							_('div').css('ui-sources')._(
-								_('div').css('ui-label')._('Sources'),
-								... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
-							)
+			box.clear()
+			if (out) {
+				if (out.content)
+					box._(_('pre')._(out.content))
+				if (out.sources)						
+					box._(
+						_('div').css('ui-sources')._(
+							_('div').css('ui-label')._('Sources'),
+							... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
 						)
+					)
 
-					if (out.related)
-						box._(
-							_('div').css('ui-related')._(
-								_('div').css('ui-label')._('Related'),
-								... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
-							)
+				if (out.related)
+					box._(
+						_('div').css('ui-related')._(
+							_('div').css('ui-label')._('Related'),
+							... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
 						)
-				} 
-				else  box.css({color:'red'})._('failed')
-				
-				if (box === this._last) box.scrollIntoView({behavior:'smooth'})			
-			})
-		}
+					)
+			} 
+			else  box.css({color:'red'})._('failed')
+			
+			if (box === this._last) box.scrollIntoView({behavior:'smooth'})			
+		})
 	}
 	
 	on_chat_keyup = e => {
@@ -88,6 +95,13 @@ class UI_Main extends UI_Base {
 	on_query_click = e => {
 		var text = e.target.dataset.text
 		if (text) this._query(text)
+	}
+	on_index_click = e => {
+		var index = e.target.dataset.index
+		if (index) {
+			var node = this._output.querySelector(`[data-index="${index}"]`)
+			if (node) node.scrollIntoView({behavior:'smooth'})
+		}
 	}
 }
 
