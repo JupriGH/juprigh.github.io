@@ -1113,8 +1113,6 @@ class UI_Main extends UI_Base {
 window.on('load', e => {
 
 	// app.host = localStorage.getItem('server')||''
-	
-
 
 	app.get_param()
 	
