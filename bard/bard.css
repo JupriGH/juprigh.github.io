@@ -46,15 +46,22 @@ img.ui-avatar {
 	background-color: rgba(0,0,0,0.1);
 	border-radius: 5px;
 }
-.ui-query-item {
-    background-color: #FFEB3B;
+.ui-query-item, .ui-save {
     margin: 2px;
     padding: 5px;
     border-radius: 3px;
 	cursor: pointer;
 }
-.ui-query-item:hover {
-    background-color: yellow;
+
+.ui-query-item 			{ background-color: #FFEB3B; }
+.ui-query-item:hover 	{ background-color: yellow; }
+.ui-save {
+    background-color: #4CAF50;
+	color: white;
+	text-align: center;
+}
+.ui-save:hover {
+	background-color: #8BC34A;
 }
 
 /** INPUT **/

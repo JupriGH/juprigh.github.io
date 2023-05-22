@@ -13,7 +13,9 @@ class UI_Main extends UI_Base {
 		this.css('ui-main','flex-col')._(
 			_('div').css('ui-output-container', 'flex-row')._(
 				this._output = _('div').css('ui-output', 'flex-col'),
-				this._index = _('div').css('ui-query-list', 'flex-col')
+				this._index = _('div').css('ui-query-list', 'flex-col')._(
+					_('div').css('ui-save', 'sticky-t')._('Save and Quit').data({command:'quit'}).on('click', this)
+				)
 			),
 			_('div').css('ui-prompt')._(
 				_('input').css('ui-chatbox').attr({type:'text', placeholder:'Enter a prompt here. Type /quit to end conversation.'}).data({command:'chat'}).on('keyup', this),
@@ -111,9 +113,7 @@ class UI_Main extends UI_Base {
 			e.target.value = ''
 			
 			if (text === '/quit')
-				this.run(
-					app.api({command: 'quit'}).finally(() => this.remove())
-				)
+				this.run( app.api({command: 'quit'}).finally(() => this.animate_close()) )
 			else if (text)
 				this._query(text)
 			
@@ -129,6 +129,9 @@ class UI_Main extends UI_Base {
 			var node = this._output.querySelector(`[data-index="${index}"]`)
 			if (node) node.scrollIntoView({behavior:'smooth'})
 		}
+	}
+	on_quit_click = e => {
+		this.run( app.api({command: 'quit'}).finally(() => this.animate_close()) )
 	}
 }
 
