@@ -31,16 +31,18 @@ class UI_Main extends UI_Base {
 			if (cache) {
 				for (var out of cache) {
 					var index = (this._counter += 1)					
-					this._update(index, null, out, null)
+					this._push(index, null, out, null)
 				}
 			}
 		})
 	}
 
-	_update = (index, text, out, old_box) => {
+	_push = (index, text, out, old_box) => {
 		
 		var box = undefined
 
+
+			
 		if (old_box) {  // update
 			
 			box = old_box
@@ -49,14 +51,16 @@ class UI_Main extends UI_Base {
 		} else { // wait
 			
 			this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text ? text : out.query).on('click', this))
-		
+
 			this._output._(
 				_('div').css('ui-query').data({index})._(
 					_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
-					text
+					text ? text : out.query
 				),
 				box = this._last = _('div').css('ui-answer')._(_('i')._(out ? null : 'thinking ...'))
-			)		
+			)
+		
+			box.scrollIntoView({behavior:'smooth'})
 		}
 		
 		if (out) {
@@ -79,31 +83,26 @@ class UI_Main extends UI_Base {
 					)
 				)
 		} 
-		else if (old_box)
+		else if (old_box) 
 			box.css({color:'red'})._('failed')
 
+		if (old_box)
+			if (box === this._last) box.scrollIntoView({behavior:'smooth'})
+			
 		return box
 	}
 
 	_query = (text) => {
+		
 		var text = text.trim()
 		if (!text) return
 
 		var index = (this._counter += 1)		
-		var box = this._last = this._update(index, text)
-		
-		box.scrollIntoView({behavior:'smooth'})
-		
-		///
+		var box = this._last = this._push(index, text)
 		var out = undefined		
 
 		app.api({command:'prompt', text}).then(res => out = res?.data)
-		.finally( () => {
-			this._update(index, text, out, box)			
-			if (box === this._last) box.scrollIntoView({behavior:'smooth'})			
-		})
-	
-	
+		.finally( () =>  this._push(index, text, out, box))	
 	}
 	
 	on_chat_keyup = e => {
