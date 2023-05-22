@@ -25,10 +25,16 @@ img.ui-avatar {
 	flex-grow: 1;
 }
 
-.ui-query, .ui-answer {
-	white-space: pre-wrap;
+.ui-query, 
+.ui-answer {
 	padding: 10px;
 }
+
+.ui-query, 
+.ui-answer pre {
+	white-space: pre-wrap;
+}
+
 .ui-query {
 	font-size: large;
 }
@@ -39,4 +45,29 @@ img.ui-avatar {
 }
 .ui-answer:hover {
 	background-color: rgba(255,255,255,1);
+}
+
+.ui-sources, .ui-related {
+	padding: 10px;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 5px;
+    margin: 5px 0;
+}
+
+.ui-sources a { display: block; }
+.ui-related div { cursor: pointer; }
+
+.ui-sources a:hover,
+.ui-related div:hover
+{
+	font-weight: bold;
+}
+.ui-label {
+	font-weight: bold;
+    font-size: larger;
+    padding: 5px;
+    border-radius: 3px;
+    background-color: rgba(0,0,0,0.1);
+    margin-bottom: 5px;
+    display: inline-block;
 }

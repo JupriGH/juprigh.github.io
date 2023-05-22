@@ -29,7 +29,7 @@ class UI_Main extends UI_Base {
 		if (text) {
 
 			var box = undefined
-			var answer = undefined
+			var out = undefined
 			
 			this._output._( 
 				_('div').css('ui-query')._(
@@ -41,12 +41,30 @@ class UI_Main extends UI_Base {
 			
 			box.scrollIntoView({behavior:'smooth'})
 			
-			app.api({command:'prompt', text}).then(res => answer = res?.data?.content)
+			app.api({command:'prompt', text}).then(res => out = res?.data)
 			.finally( () => {
 				
 				box.clear()
-				if (answer) box._(answer)
-				else 		box.css({color:'red'})._('failed')
+				if (out) {
+					if (out.content)
+						box._(_('pre')._(out.content))
+					if (out.sources)						
+						box._(
+							_('div').css('ui-sources')._(
+								_('div').css('ui-label')._('Sources'),
+								... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
+							)
+						)
+
+					if (out.related)
+						box._(
+							_('div').css('ui-related')._(
+								_('div').css('ui-label')._('Related'),
+								... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
+							)
+						)
+				} 
+				else  box.css({color:'red'})._('failed')
 				
 				if (box === this._last) box.scrollIntoView({behavior:'smooth'})			
 			})
@@ -62,10 +80,14 @@ class UI_Main extends UI_Base {
 				this.run(
 					app.api({command: 'quit'}).finally(() => this.remove())
 				)
-			else
+			else if (text)
 				this._query(text)
 			
 		}
+	}
+	on_query_click = e => {
+		var text = e.target.dataset.text
+		if (text) this._query(text)
 	}
 }
 
