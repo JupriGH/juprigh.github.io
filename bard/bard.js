@@ -10,33 +10,43 @@ class UI_Main extends UI_Base {
 	constructor() {
 		super()
 		
-		this.css('ui-main','flex-col')._(
-			_('div').css('ui-output-container', 'flex-row')._(
-				this._output = _('div').css('ui-output', 'flex-col'),
-				this._index = _('div').css('ui-query-list', 'flex-col')._(
-					_('div').css('ui-save', 'sticky-t')._('Save and Quit').data({command:'quit'}).on('click', this)
-				)
-			),
-			_('div').css('ui-prompt')._(
-				_('input').css('ui-chatbox').attr({type:'text', placeholder:'Enter a prompt here. Type /quit to end conversation.'}).data({command:'chat'}).on('keyup', this),
-			)
-		)
+		this.css('ui-main','flex-col')
 		
 		this._counter = 0
 		this._last = null
+		this.run(
 		
-		app.api({command: 'config'}).then(res => {
-			var query = res?.data?.query
-			if (query) for (var q of query) this._query(q)
-				
-			var cache = res?.data?.cache
-			if (cache) {
-				for (var out of cache) {
-					var index = (this._counter += 1)					
-					this._push(index, null, out, null)
+			app.api({command: 'config'}).then(res => {
+				// INIT UI
+				this._(
+					_('div').css('ui-output-container', 'flex-row')._(
+						this._output = _('div').css('ui-output', 'flex-col'),
+						this._index = _('div').css('ui-query-list', 'flex-col')._(
+							_('div').css('ui-save', 'sticky-t')._('Save and Quit').data({command:'quit'}).on('click', this)
+						)
+					),
+					_('div').css('ui-prompt')._(
+						_('input').css('ui-chatbox').attr({type:'text', placeholder:'Enter a prompt here. Type /quit to end conversation.'}).data({command:'chat'}).on('keyup', this),
+					)
+				)				
+
+				// CONFIG
+				var query = res?.data?.query
+				if (query) for (var q of query) this._query(q)
+					
+				var cache = res?.data?.cache
+				if (cache) {
+					for (var out of cache) {
+						var index = (this._counter += 1)					
+						this._push(index, null, out, null)
+					}
 				}
-			}
-		})
+			})
+			.catch( e => {
+				
+				this.animate_close()
+			})
+		)
 	}
 
 	_push = (index, text, out, old_box) => {
@@ -59,7 +69,7 @@ class UI_Main extends UI_Base {
 					_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
 					text ? text : out.query
 				),
-				box = this._last = _('div').css('ui-answer')._(_('i')._(out ? null : 'thinking ...'))
+				box = this._last = _('div').css('ui-answer')._(_('i')._(out ? null : 'please wait, thinking ...'))
 			)
 		
 			box.scrollIntoView({behavior:'smooth'})
