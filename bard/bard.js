@@ -26,56 +26,84 @@ class UI_Main extends UI_Base {
 		app.api({command: 'config'}).then(res => {
 			var query = res?.data?.query
 			if (query) for (var q of query) this._query(q)
+				
+			var cache = res?.data?.cache
+			if (cache) {
+				for (var out of cache) {
+					var index = (this._counter += 1)					
+					this._update(index, null, out, null)
+				}
+			}
 		})
 	}
-	
+
+	_update = (index, text, out, old_box) => {
+		
+		var box = undefined
+
+		if (old_box) {  // update
+			
+			box = old_box
+			box.clear()
+			
+		} else { // wait
+			
+			this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text ? text : out.query).on('click', this))
+		
+			this._output._(
+				_('div').css('ui-query').data({index})._(
+					_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
+					text
+				),
+				box = this._last = _('div').css('ui-answer')._(_('i')._(out ? null : 'thinking ...'))
+			)		
+		}
+		
+		if (out) {
+			if (out.content)
+				box._(_('pre')._(out.content))
+
+			if (out.sources)						
+				box._(
+					_('div').css('ui-sources')._(
+						_('div').css('ui-label')._('Sources'),
+						... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
+					)
+				)
+
+			if (out.related)
+				box._(
+					_('div').css('ui-related')._(
+						_('div').css('ui-label')._('Related'),
+						... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
+					)
+				)
+		} 
+		else if (old_box)
+			box.css({color:'red'})._('failed')
+
+		return box
+	}
+
 	_query = (text) => {
 		var text = text.trim()
 		if (!text) return
 
-		var box = undefined
-		var out = undefined
-		
-		var index = (this._counter += 1)
-		
-		this._output._( 
-			_('div').css('ui-query').data({index})._(
-				_('img').css('ui-avatar').attr({src:'/favicon.ico'}),
-				text
-			),
-			box = this._last = _('div').css('ui-answer')._(_('i')._('thinking ...'))
-		)
-		this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text).on('click', this))
+		var index = (this._counter += 1)		
+		var box = this._last = this._update(index, text)
 		
 		box.scrollIntoView({behavior:'smooth'})
 		
+		///
+		var out = undefined		
+
 		app.api({command:'prompt', text}).then(res => out = res?.data)
 		.finally( () => {
-			
-			box.clear()
-			if (out) {
-				if (out.content)
-					box._(_('pre')._(out.content))
-				if (out.sources)						
-					box._(
-						_('div').css('ui-sources')._(
-							_('div').css('ui-label')._('Sources'),
-							... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
-						)
-					)
-
-				if (out.related)
-					box._(
-						_('div').css('ui-related')._(
-							_('div').css('ui-label')._('Related'),
-							... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
-						)
-					)
-			} 
-			else  box.css({color:'red'})._('failed')
-			
+			this._update(index, text, out, box)			
 			if (box === this._last) box.scrollIntoView({behavior:'smooth'})			
 		})
+	
+	
 	}
 	
 	on_chat_keyup = e => {
