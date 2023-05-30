@@ -1,3 +1,9 @@
+@keyframes animate-pulse {
+	0% 		{scale: 100%;}
+	50%		{scale: 105%;}
+	75%		{scale: 110%;}
+	100%	{scale: 105%;}
+}
 @keyframes animate-zoom-in {
 	from {
 		scale: 0%;
@@ -136,8 +142,8 @@ table {
 img.cat-photo {
 	border-radius: 50%;
 	padding: 5px;
-	width: 128px;
-	height: 128px;
+	width: 192px;
+	height: 192px;
 }
 .auth-message {
 	margin: 10px;
@@ -146,6 +152,7 @@ img.cat-photo {
 	cursor: pointer;
 	background-color: white;
 	padding: 10px;
+	/*animation: animate-pulse 1s infinite; */
 }
 .drop-shadow {
 	box-shadow: 0px 0px 5px 4px rgba(0,0,0,0.1);
