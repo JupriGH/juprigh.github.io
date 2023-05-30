@@ -16,7 +16,11 @@ class UI_Main extends UI_Base {
 		this._last = null
 		this.run(
 		
-			app.api({command: 'config'}).then(res => {
+			app.api({command: 'config'})
+			.catch( e => {				
+				this.animate_close()
+			})
+			.then(res => {
 				// INIT UI
 				this._(
 					_('div').css('ui-output-container', 'flex-row')._(
@@ -42,25 +46,20 @@ class UI_Main extends UI_Base {
 					}
 				}
 			})
-			.catch( e => {
-				
-				this.animate_close()
-			})
+			
 		)
 	}
 
 	_push = (index, text, out, old_box) => {
 		
 		var box = undefined
-
-
-			
+	
 		if (old_box) {  // update
 			
 			box = old_box
 			box.clear()
 			
-		} else { // wait
+		} else { // wait (new) 
 			
 			this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text ? text : out.query).on('click', this))
 
@@ -76,7 +75,12 @@ class UI_Main extends UI_Base {
 		}
 		
 		if (out) {
-			if (out.content)
+			
+			if (out.content_html)
+				box._(
+					_('div').HTML(out.content_html)
+				)
+			else if (out.content)
 				box._(_('pre')._(out.content))
 
 			if (out.sources)						

@@ -228,10 +228,8 @@ class DM_App extends Application {
 }
 
 export const app = window._app = new DM_App()
-
+/**
 export const xapp = {
-
-	
 
 	sse(query, url, progress) {
 		
@@ -279,106 +277,13 @@ export const xapp = {
 			}
 		})
 	},
-	
-	ws(query, url, progress) {
-		
-		return new Promise((resolve, reject) => {
-			if (!url) url =  `${this.host||window.location.origin}/ws`
-			url = url.replace('https://','wss://').replace('http://','ws://')
-			
-			console.log('<ws> <<', query)
-			
-			var sock = new WebSocket(url)
-			var raws = [] // chunks
-			
-			sock.on(['open','message','error','close'], e => {
-				
-
-				switch(e.type) {
-				case 'open':
-					console.warn(`ws:${e.type}`, e)
-					sock.send(JSON.stringify(query))
-					break
-				
-				case 'message':
-
-					var con = e?.data?.constructor
-					
-					if (con === String) {
-						
-						var res = JSON.parse(e.data)
-						switch (res.code) {
-						case 0: // END
-							e.target.close(1000, 'manual close')
-							if (progress) progress()
-							if (raws.length) res.raw = new Blob([...raws])
-							console.log('<ws> >>', res)
-							resolve(res)
-							break
-						
-						case 101: // PROGRESS	
-							console.log('PROGRESS', res)
-							if (progress) {
-								var {caption, count, total} = res
-								progress({caption, count, total})
-							}
-							break
-							
-						default:
-							if (res.code >= 500) { // ERRORS							
-								e.target.close(1000, 'manual close')
-								if (progress) progress()
-								if (!res.error) res.error = 'Unknwon API error'
-								console.error('<ws> >>', res)
-								reject(res)
-							}
-							else
-								console.warn('UNKNOWN MESSAGE', e.data)
-								// statuses, progress, etc.
-						}
-
-					} else if (con === Blob) {
-						
-						console.warn('BLOB', e.data.size)
-						raws.push(e.data)
-
-					} else {
-						
-						console.warn('TODO: ws-message', e)						
-					}
-					break
-				
-				case 'error':
-					console.warn(`ws:${e.type}`, e)
-					break
-				
-				case 'close':
-					
-					console.warn(`ws:${e.type}`, e)
-					if (progress) progress()
-
-					if (e.code === 1000) {
-					} else {
-						reject(`[websocket] error ${e.code} ${e.reason||"unknown error"}`)
-					}
-					break
-				
-				default:
-					console.error(`UNKNOWN ws:${e.type}`, e)
-				}
-				
-			})
-		})
-	},
-	
-
-	
-
-	
 }
+**/
 
 ////////////////////////////////////// BOOT
-import { start_ui } from './main.js'
+import { start_ui, UI_Auth } from './main.js'
+
+
 
 window.on('load', e => {
 	var query = app.get_param()
@@ -424,7 +329,9 @@ window.on('load', e => {
 			//alert(query.redir)
 			
 			if (query.redir) {
-				window.document.body._('Make sure popup not blocked')
+				
+				customElements.define('ui-auth',  UI_Auth, {extends:'div'})
+				window.document.body._(_('div', {is: 'ui-auth'}))
 				app.auth(query.redir)
 			}
 		}

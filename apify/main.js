@@ -1108,6 +1108,21 @@ class UI_Main extends UI_Base {
 	on_google_click 	= e => this.run(app.auth('google'))	//.then(res => res && app.api({command:'auth-done', data:res})))
 }
 
+/////////////////////////////////////////// AUTH
+export class UI_Auth extends UI_Base { 
+	constructor() {
+		super()
+		
+		this.css('ui-modal','ui-auth')._(
+			_('div').css('center-fixed')._(
+				_('img').css('cat-photo', 'drop-shadow').attr({src:'../res/cat.jpg'}),
+				_('div').css('auth-message', 'drop-shadow')._('Make sure popup not blocked, or click here to reload.').data({command:'reload'}).on('click', this)
+			)
+		)
+	}
+	on_reload_click = e => location.reload()
+}
+	
 ////////////////////////////////////// BOOT
 /**
 window.on('load', e => {
@@ -1137,7 +1152,7 @@ export const start_ui = () => {
 	customElements.define( 'ui-confirm',			UI_Confirm,			{extends:'div'} )
 	customElements.define( 'ui-pager',				UI_Pager, 			{extends:'div'} )
 	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )	
-
+	
 	progress_iu 	= _('div', {is:'ui-progress'})
 	main_ui 		= app.main_ui = _('div', {is:'ui-main'})
 	
