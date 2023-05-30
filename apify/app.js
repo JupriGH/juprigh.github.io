@@ -205,12 +205,12 @@ class DM_App extends Application {
 			window.on('message', this.auth_listen) //, {once:true})
 
 			// WINDOW
-			//var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
+			var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 			var popup = window.open( 
 				`?mode=auth&redir=${auth_type}` + (this.param ? `&param=${this.param}` : ''),
 				`authwindow`,
-				'popup,location=no'
-				//`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
+				//'popup=yes,location=no'
+				`popup=yes,resizable=yes,width=${w},height=${h},top=${t},left=${l}`
 			)
 			
 			// DETECT CLOSED
