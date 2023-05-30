@@ -150,7 +150,7 @@ img.cat-photo {
 	font-size: large;
 	border-radius: 5px;
 	cursor: pointer;
-	background-color: white;
+	background-color: #ffc107;
 	padding: 10px;
 	/*animation: animate-pulse 1s infinite; */
 }
