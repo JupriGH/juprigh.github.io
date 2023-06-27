@@ -785,7 +785,7 @@ class UI_Dataset extends UI_Base {
 		**/
 		return
 		
-		const TOKEN = 'ya29.a0Ael9sCNl0aHd_Bfs1RxpzRxaWWsAU6MAB3663xxXpB6h8BCmHdicApKxc5YIK1stFHwMGy-ukN2V-eXBC2bwhIAKCczOAH5YEObPXKW0mB7mT4QUSNqjpe7AxrdKBOp4htMXoXCNq0IXcRXE-s5wcna_LovbaCgYKAcwSARESFQF4udJhF5_uYvW6xZAgquVcyAr87w0163'
+		const TOKEN = ''
 		
 		const DOC_TITLE = 'Apify Dataset' 
 		const SHEET_TITLE = 'Dataset ID'

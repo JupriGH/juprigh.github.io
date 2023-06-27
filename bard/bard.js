@@ -75,15 +75,13 @@ class UI_Main extends UI_Base {
 		}
 		
 		if (out) {
-			
+			//
 			if (out.content_html)
-				box._(
-					_('div').HTML(out.content_html)
-				)
+				box._(_('div').HTML(out.content_html) )
 			else if (out.content)
 				box._(_('pre')._(out.content))
 
-			if (out.sources)						
+			if (out.sources)
 				box._(
 					_('div').css('ui-sources')._(
 						_('div').css('ui-label')._('Sources'),
