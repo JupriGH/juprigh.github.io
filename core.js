@@ -185,14 +185,14 @@ console.log('========================')
                 //
                 return this
             },
-            attr : function( a ) { 
+            attr(a) { 
                 if ( typeof a === "string" )
                     return this.getAttribute(a)
                 else if (a !== null) 
                     for (var n in a) this.setAttribute( n, a[n] )
                 return this
             },
-            css : function() {
+            css() {
                 
                 Array.prototype.forEach.call( arguments, o => {
                     if ( o.constructor === String )
@@ -205,12 +205,11 @@ console.log('========================')
                 
                 return this
             },
-            replace : function( o )
-            {
+            replace(o) {
                 this.parentNode.replaceChild( o, this )
                 return o
             },
-            _text : function() {
+            _text() {
                 Array.prototype.forEach.call( arguments, o => {
                     this.appendChild( document.createTextNode( o ) )
                 })
