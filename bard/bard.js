@@ -6,6 +6,13 @@ class BARD_APP extends Application {
 const app = window._app = new BARD_APP()
 
 ///////////////////////////////////////////////////// MAIN UI
+class UI_Output extends UI_Base {
+	constructor() {
+		super()
+	}
+}
+
+///////////////////////////////////////////////////// MAIN UI
 class UI_Main extends UI_Base {
 	constructor() {
 		super()
@@ -75,17 +82,42 @@ class UI_Main extends UI_Base {
 		}
 		
 		if (out) {
-			//
+
+			var content = null, sources = null
+
+			if (out.content) {
+				content = out.content
+				sources = out.sources
+			} else if (out.choices) {
+				var res = out.choices[0]
+				content = res.content
+				sources = res.sources
+			}
+			
+			/**
 			if (out.content_html)
 				box._(_('div').HTML(out.content_html) )
 			else if (out.content)
 				box._(_('pre')._(out.content))
-
-			if (out.sources)
+			**/
+			
+			if (out.choices) {
+				box._(
+					_('div').css('ui-draft-list')._(
+						... out.choices.map((e,i) => _('div').data({index:i})._(e.content))
+					)
+				)
+				box._drafts = out.choices
+			}
+			
+			if (content)
+				box._(_('pre')._(content))
+			
+			if (sources)
 				box._(
 					_('div').css('ui-sources')._(
 						_('div').css('ui-label')._('Sources'),
-						... out.sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
+						... sources.map( s => _('a').attr({href:s.url, target:'_blank'})._(s.url) )
 					)
 				)
 
@@ -115,7 +147,8 @@ class UI_Main extends UI_Base {
 		var box = this._last = this._push(index, text)
 		var out = undefined		
 
-		app.api({command:'prompt', text}).then(res => out = res?.data)
+		app.api({command:'prompt', text})
+		.then(res => out = res?.data)
 		.finally( () =>  this._push(index, text, out, box))	
 	}
 	
@@ -153,6 +186,7 @@ window.on('load', e => {
 	var query = app.get_param()
 
 	customElements.define( 'ui-main', 				UI_Main, 			{extends:'div'} )
+	customElements.define( 'ui-answer', 			UI_Output, 			{extends:'div'} )
 
 	var main_ui = app.main_ui = _('div', {is:'ui-main'})
 	

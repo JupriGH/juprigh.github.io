@@ -52,6 +52,22 @@ img.ui-avatar {
     border-radius: 3px;
 	cursor: pointer;
 }
+.ui-draft-list {
+    display: flex;
+    flex-direction: row;
+}
+.ui-draft-list > div {
+    padding: 5px;
+    border: 1px solid #00000040;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 2px;
+    text-wrap: nowrap;
+    max-width: 100px;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    color: #00000040;
+}
 
 .ui-query-item 			{ background-color: #FFEB3B; }
 .ui-query-item:hover 	{ background-color: yellow; }
@@ -84,7 +100,9 @@ img.ui-avatar {
 }
 
 .ui-query {
-	font-size: large;
+	display: flex;
+	flex-direction: row;
+	font-weight: bold;
 }
 
 .ui-answer {
