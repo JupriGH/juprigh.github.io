@@ -1,9 +1,6 @@
 import { Application, UI_Base } from '../core.js'
 
-class BARD_APP extends Application {
-}
-
-const app = window._app = new BARD_APP()
+const app = window._app = new Application()
 
 ///////////////////////////////////////////////////// OUTPUT UI
 class UI_Output extends UI_Base {
@@ -22,12 +19,6 @@ class UI_Output extends UI_Base {
 		this._pick = null
 	}
 	
-	on_choice_click = e => {
-		var i = e.target.dataset.choice
-		if (i !== undefined)
-			this._update(this._data, parseInt(i))
-	}
-	
 	_send = text => {
 		this._prompt.clear()._(text)
 		
@@ -37,6 +28,7 @@ class UI_Output extends UI_Base {
 				this._update(out)
 			})
 			.finally(() => this.fire('answer'))
+		return this
 	}
 	
 	_update = (out, choice) => {		
@@ -61,9 +53,7 @@ class UI_Output extends UI_Base {
 				var res = out.choices[this._pick]
 				var {content, sources, html}  = res
 			}
-			
-			
-			
+
 			if (out.choices) {
 				box._(
 					_('div').css('ui-draft-list')._(
@@ -93,34 +83,36 @@ class UI_Output extends UI_Base {
 				box._(
 					_('div').css('ui-related')._(
 						_('div').css('ui-label')._('Related'),
-						... out.related.map( s => _('div')._(s.text).data({command:'query', text:s.text}).on('click', this)) 
+						... out.related.map( s => _('div')._(s.text).data({command:'query', query:s.text}).on('click', this)) 
 					)
 				)
 		} 
-		/**
-		else if (old_box) 
-			box.css({color:'red'})._('failed')
-
-		if (old_box)
-			if (box === this._last) box.scrollIntoView({behavior:'smooth'})
-		**/
+		return this
 	}
+
+	/// EVENTS
+	
+	on_choice = e => {
+		var i = e.target.dataset.choice
+		if (i !== undefined) this._update(this._data, parseInt(i))
+	}
+
+	on_query = e => e.target.fire('query')
 }
 
 ///////////////////////////////////////////////////// MAIN UI
 class UI_Main extends UI_Base {
 	constructor() {
 		super()
-		
-		this.css('ui-main','flex-col')
-		
+		this.css('ui-main','flex-col').data
 		this._counter = 0
 		this._last = null
-		this.on('answer', this)
 		
+		this.on('query', this, true)
+		
+		// get configurations
 		this.run(
-		
-			app.api({command: 'config'})
+			app.api({command:'config'})
 			.catch( e => {				
 				this.animate_close()
 			})
@@ -139,89 +131,79 @@ class UI_Main extends UI_Base {
 				)				
 
 				// query (unanswered)
-				var query = res?.data?.query
-				if (query) 
-					for (var t of query) this._query(t)
+				var data = res?.data
 				
-				// cache (answered)
-				var cache = res?.data?.cache
-				if (cache) 
-					for (var t of cache)  this._push(t)
-
+				if (data) {
+					var { query, cache } = data 
+					if (query) for (var t of query) this._query(t)
+					if (cache) for (var t of cache) this._push(t)
+				}
 			})
-			
 		)
 	}
 
-	_add_index = text => {	
+	new_index = text => {	
 		var index = (this._counter += 1)
 		this._index._(_('div').css('ui-query-item').data({command:'index', index})._(text).on('click', this))
 		return index
 	}
-
-	_push = out => {			
-		// index 
-		var index = this._add_index(out.query)
-
-		// answer 
-		var box = this._last = _('div', {is: 'ui-output'})
-		box.data({index})._update(out)
-		
-		this._output._(box)
-	}
-
+	
 	_query = text => {
-		var text = text.trim()
+		text = text.trim()
 		if (!text) return
 
 		// index
-		var index = this._add_index(text)
+		var index = this.new_index(text)
 		
 		// answer
-		var box = this._last = _('div', {is: 'ui-output'})
-		box.data({index})._send(text)
-		
+		var box = this._last = _('div', {is: 'ui-output'}).data({index})._send(text)
+		this._output._(box)
+	}
+	_push = out => {			
+		// index 
+		var index = this.new_index(out.query)
+
+		// answer 
+		var box = this._last = _('div', {is: 'ui-output'}).data({index})._update(out)
 		this._output._(box)
 	}
 	
-	on_chat_keyup = e => {
-		if (e.keyCode === 13) { // ENTER
-			var text = e.target.value
-			e.target.value = ''
-			
-			if (text === '/quit')
-				this.run( app.api({command: 'quit'}).finally(() => this.animate_close()) )
-			else if (text)
-				this._query(text)
-			
-		}
-	}
-	on_query_click = e => {
-		var text = e.target.dataset.text
-		if (text) this._query(text)
-	}
-	on_index_click = e => {
+	/// EVENTS
+
+
+	on_query = e => this._query(e.target.dataset.query)	
+
+	on_index = e => {
 		var index = e.target.dataset.index
 		if (index) {
 			var node = this._output.querySelector(`.ui-output-item[data-index="${index}"]`)
 			if (node) node.scrollIntoView({behavior:'smooth'})
 		}
 	}
-	on_quit_click = e => {
-		this.run( app.api({command: 'quit'}).finally(() => this.animate_close()) )
+
+	on_chat = e => {
+		if (e.keyCode !== 13) return // ENTER
+
+		var { target } = e, { value } = target
+		target.value = ''
+			
+		if (value === '/quit') 	this.run( app.api({command: 'quit'}).finally(() => this.animate_close()) )
+		else if (value) 		this._query(value)
+	}
+
+	on_quit = e => {
+		this.run( app.api({command:'quit'}).finally(() => this.animate_close()) )
 	}
 }
 
 
 window.on('load', e => {
-	
 	var query = app.get_param()
 
 	customElements.define('ui-main',		UI_Main, 			{extends:'div'} )
 	customElements.define('ui-output',		UI_Output, 			{extends:'div'} )
 
-	var main_ui = app.main_ui = _('div', {is:'ui-main'})
-	
+	var main_ui = app.main_ui = _('div', {is:'ui-main'})	
 	window.document.body._( main_ui )
 	
 }, {once: true})

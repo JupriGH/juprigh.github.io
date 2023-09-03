@@ -352,7 +352,9 @@ window._ = window.document.createElement.bind( window.document )
 ////////////////////////////////////// BASE APPLICATION
 class Application {
 	
+	api_url		= ''
 	api_host 	= ''
+	
 	param 		= null // query parameters
 
 	get_param = () => {
@@ -368,7 +370,7 @@ class Application {
 	}
 
 	api = (query, url, progress) => {
-		if (!url) url = `${this.api_host}/api`
+		if (!url) url = `${this.api_url}` || `${this.api_host}/api`
 		console.log('<api> <<', query)
 
 		var prom = fetch(url, {
@@ -558,12 +560,29 @@ class UI_Base extends HTMLDivElement {
 	})
 
 	handleEvent(e, ... args) {		
+		var command = e.target.dataset.command
+		if (command == undefined) {
+			console.error('command undefined')
+			return
+		}
+		
+		//var value 	= e.target.dataset[command]
+		//console.log({command, value, t:e.target, ct:e.currentTarget})
+		
+		//if (value) {
+			var name = `on_${command}`.replace('-','_')
+			if (this[name]) this[name](e, ... args)
+			else console.warn('event:', name, ... args)
+		//}
+		
+		/*
 		var command = e.currentTarget.dataset.command ?? e.target.dataset.command
 		command = command ? `on_${command}_${e.type}` : `on_${e.type}`
 		command = command.replace('-','_')
 
 		if (this[command]) this[command](e, ... args)
 		else console.warn('event:', command, ... args)
+		*/
 	}
 	
 	animate_close = () => this.css({'animation':'animate-zoom-out 0.5s'}).on('animationend', e => this.remove()) 
