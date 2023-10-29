@@ -284,7 +284,6 @@ export const xapp = {
 import { start_ui, UI_Auth } from './main.js'
 
 
-
 window.on('load', e => {
 	var query = app.get_param()
 	switch (query.mode) {

@@ -882,7 +882,7 @@ class UI_Dataset extends UI_Base {
 										},
 										cell: {
 											userEnteredFormat: {
-												backgroundColor: { red: 11/255, green: 85/255, blue: 157/255 },
+												backgroundColor: {red: 11/255, green: 85/255, blue: 157/255},
 												horizontalAlignment : 'CENTER', wrapStrategy: 'WRAP',
 												textFormat: {
 													foregroundColor: {red: 1.0, green: 1.0, blue: 1.0},
