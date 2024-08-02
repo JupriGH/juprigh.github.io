@@ -375,11 +375,15 @@ class Application {
 	api = (query, url, progress) => {
 		if (!url) url = `${this.api_url}` || `${this.api_host}/api`
 		console.log('<api> <<', query)
-
+		
+		var headers = {'Content-Type': 'application/json'}
+		var token = this.__query?.token
+		if (token) headers['Authorization'] = `Bearer ${token}` // APIFY_TOKEN
+		
 		var prom = fetch(url, {
 			method		: 'POST',
 			cache		: 'no-cache',
-			headers		: {'Content-Type': 'application/json'},
+			headers,
 			credentials	: 'include', // omit / include
 			body		: JSON.stringify(query) 
 		})
@@ -573,7 +577,7 @@ class UI_Base extends HTMLDivElement {
 		//console.log({command, value, t:e.target, ct:e.currentTarget})
 		
 		//if (value) {
-			var name = `on_${command}`.replace('-','_')
+			var name = `on_${command}_${e.type}`.replace('-','_')
 			if (this[name]) this[name](e, ... args)
 			else console.warn('event:', name, ... args)
 		//}
