@@ -378,7 +378,7 @@ class Application {
 		
 		var headers = {'Content-Type': 'application/json'}
 		var token = this.__query?.token
-		if (token) headers['Authorization'] = `Bearar ${token}` // APIFY_TOKEN
+		if (token) headers['Authorization'] = `Bearer ${token}` // APIFY_TOKEN
 		
 		var prom = fetch(url, {
 			method		: 'POST',
