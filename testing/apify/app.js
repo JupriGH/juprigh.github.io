@@ -207,7 +207,8 @@ class DM_App extends Application {
 			// WINDOW
 			var w = 540, h = 640, l = (screen.width - w) / 2, t = (screen.height - h) / 2
 			var p = Object.entries({'location':'no','popup':'yes','resizable':'yes','width':w, 'height': h, 'top': t, 'left':l}).map(x => `${x[0]}=${x[1]}`).join(',') 
-			var u = `?mode=auth&redir=${auth_type}` + (this.param ? `&param=${this.param}` : '')
+			// var u = `?mode=auth&redir=${auth_type}` + (this.param ? `&param=${this.param}` : '')
+			var = '?mode=auth&redir=${auth_type}&token={this.__query?.token}'
 			var popup = window.open(u, `authwindow`, p)
 			
 			// DETECT CLOSED
