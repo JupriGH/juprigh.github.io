@@ -186,7 +186,7 @@ class DM_App extends Application {
 			this.auth_clear()
 			var done = e?.data?.done
 			if (done)
-				this.api({command:'auth-done', data:done}).then(res => this.auth_resolve(res)).catch(e => this.auth_reject(e))
+				this.api({command:'auth-done', ...done}).then(res => this.auth_resolve(res)).catch(e => this.auth_reject(e))
 			else
 				this.api({command:'auth-done', data:{'error':'NO_DATA'}}).then( _ => this.auth_reject('No Data!'))
 			break
@@ -221,6 +221,47 @@ class DM_App extends Application {
 				}
 			}, 500)
 		})
+	}
+	
+	auth_start = () => {
+		var query = this.__query
+		if (window.opener) {
+			// This is popup
+			
+			if (query.redir) {
+				// START AUTH FLOW
+				var server = `${query.param?.server||''}/api`
+				//server = 'http://127.0.0.1:8008/api'
+				//alert(`${1} ${server}`)
+				
+				this.api({command:'auth-url', auth_type: query.redir}, server)
+					.then(res => { alert(res.data),window.location.href = res.data })
+					.catch(e => {			
+						//alert('FAILED #1')
+						window.opener.postMessage({type:'dm-auth-done', done: {'error': 'GET_URL_FAILED'}}, '*')
+						window.close()
+					})
+				
+			} else if (query.auth_type) {
+				//alert('DONE #1')
+				window.opener.postMessage({type:'dm-auth-done', done: query}, '*')
+				window.close()
+				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
+			}
+			
+		} else {
+			
+			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')
+			//window.open(window.location.href, 'auth', 'popup')
+			//app.auth()
+			//alert(query.redir)
+			
+			if (query.redir) {				
+				customElements.define('ui-auth',  UI_Auth, {extends:'div'})
+				window.document.body._(_('div', {is: 'ui-auth'}))
+				this.auth(query.redir)
+			}
+		}	
 	}
 
 }
@@ -283,9 +324,9 @@ import { start_ui, UI_Auth } from './main.js'
 
 
 window.on('load', e => {
-	var query = app.get_param()
-	switch (query.mode) {
+	alert(app.__query?.mode)
 	
+	switch (app.__query?.mode) {
 	case 'manager':
 		start_ui()
 		break
@@ -295,42 +336,7 @@ window.on('load', e => {
 		break
 	
 	case 'auth':
-		if (window.opener) {
-			// This is popup
-			if (query.redir) {
-				// START AUTH FLOW
-				var server = `${query.param?.server||''}/api`
-				//server = 'http://127.0.0.1:8008/api'
-				//alert(`${1} ${server}`)
-				
-				app.api({command:'auth-url', type: query.redir}, server)
-					.then(res => { alert(res.data),window.location.href = res.data })
-					.catch(e => {			
-						//alert('FAILED #1')
-						window.opener.postMessage({type:'dm-auth-done', done: {'error': 'GET_URL_FAILED'}}, '*')
-						window.close()
-					})
-				
-			} else if (query.auth_type) {
-				//alert('DONE #1')
-				window.opener.postMessage({type:'dm-auth-done', done: query}, '*')
-				window.close()
-				//app.api({command:'auth-done', data: query}).finally(() => alert( 'window.close()' ))	
-			}
-			
-		} else {
-			
-			//window.open(window.location.pathname + (window.location.search||'?redir=google'), 'auth', 'popup')
-			//window.open(window.location.href, 'auth', 'popup')
-			//app.auth()
-			//alert(query.redir)
-			
-			if (query.redir) {				
-				customElements.define('ui-auth',  UI_Auth, {extends:'div'})
-				window.document.body._(_('div', {is: 'ui-auth'}))
-				app.auth(query.redir)
-			}
-		}
-		break	
+		app.auth_start()
+		break		
 	}
 }, {once: true} )
