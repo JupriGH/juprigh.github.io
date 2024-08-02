@@ -375,11 +375,14 @@ class Application {
 	api = (query, url, progress) => {
 		if (!url) url = `${this.api_url}` || `${this.api_host}/api`
 		console.log('<api> <<', query)
-
+		
+		var headers = {'Content-Type': 'application/json'}
+		if (token=this.__query?.token) headers['Authorization'] = `Berar ${token}` # APIFY_TOKEN
+		
 		var prom = fetch(url, {
 			method		: 'POST',
 			cache		: 'no-cache',
-			headers		: {'Content-Type': 'application/json'},
+			headers,
 			credentials	: 'include', // omit / include
 			body		: JSON.stringify(query) 
 		})
